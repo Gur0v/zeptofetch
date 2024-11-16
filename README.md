@@ -33,6 +33,8 @@ info:
 ────────────────────────────────────────────────
 
 note:
+  · the app has poor tty support as of right now
+  and is intended to be ran in a graphical env.
   · code is intentionally minimized and packed
   for tiny binary size, not readability.
   · zeptofetch has very experimental support for
