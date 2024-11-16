@@ -23,12 +23,18 @@ get:
 ───────────────────────────────────────────────
 
 info:
-  · optimized for size (-Os -s)
+  · optimized for size
   · zero dependencies
   · native cpu optimizations
   · link time optimization
   · minimal binary size (16kb)
   · fast execution
+
+───────────────────────────────────────────────
+
+note:
+code is intentionally minimized and packed for
+tiny binary size, not readability
 
 ───────────────────────────────────────────────
 
