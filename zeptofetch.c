@@ -5,10 +5,7 @@
 #include <pwd.h>
 #include <string.h>
 #include <limits.h>
-#define COLOR_RESET "\033[0m"
-#define COLOR_1 "\033[1;34m"
-#define COLOR_2 "\033[1;37m"
-#define COLOR_3 "\033[1;38;5;208m"
+#include "config.h"
 void get_username(char *u, size_t s) { char *e = getenv("USER"); strncpy(u, e ? e : (getpwuid(getuid())->pw_name ?: "Unknown"), s); }
 void get_hostname(char *h, size_t s) { strncpy(h, gethostname(h, s) == 0 ? h : "Unknown", s); }
 void get_shell(char *sh, size_t s, const char *distro) { if (strcmp(distro, "FreeBSD") == 0) { struct passwd *p = getpwuid(getuid()); strncpy(sh, p && p->pw_shell ? strrchr(p->pw_shell, '/') + 1 : "Unknown", s); } else { char path[PATH_MAX]; snprintf(path, sizeof(path), "/proc/%d/exe", getppid()); ssize_t len = readlink(path, sh, s - 1); strncpy(sh, len != -1 ? ({ sh[len] = '\0'; strrchr(sh, '/') + 1; }) : "Unknown", s); } }
