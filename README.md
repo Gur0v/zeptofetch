@@ -33,10 +33,15 @@ info:
 ───────────────────────────────────────────────
 
 note:
-code is intentionally minimized and packed for
-tiny binary size, not readability
+  · code is intentionally minimized and packed
+  for tiny binary size, not readability.
 
 ───────────────────────────────────────────────
 
-gpl-3.0 | @gur0v
+human-readable version:
+  · https://paste.gentoo.zip/rlqWxDZh
+
+───────────────────────────────────────────────
+
+gpl-3.0 | @Gur0v
 ```
