@@ -38,10 +38,5 @@ note:
 
 ───────────────────────────────────────────────
 
-human-readable version:
-  · https://paste.gentoo.zip/rlqWxDZh
-
-───────────────────────────────────────────────
-
 gpl-3.0 | @Gur0v
 ```
