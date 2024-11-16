@@ -35,6 +35,9 @@ info:
 note:
   · code is intentionally minimized and packed
   for tiny binary size, not readability.
+  · this app supports FreeBSD, just make sure
+  that you have GCC installed or change "gcc"
+  in the Makefile to "clang"
 
 ───────────────────────────────────────────────
 
