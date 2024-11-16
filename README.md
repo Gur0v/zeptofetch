@@ -27,7 +27,7 @@ info:
   · zero dependencies
   · native cpu optimizations
   · link time optimization
-  · minimal binary size (16kb)
+  · minimal binary size
   · fast execution
 
 ───────────────────────────────────────────────
