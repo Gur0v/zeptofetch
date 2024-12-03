@@ -9,13 +9,13 @@ SRC = main.c system_info.c ui.c
 all: $(TARGET)
 
 $(TARGET): $(SRC)
-        $(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(SRC)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(SRC)
 
 clean:
-        rm -f $(TARGET)
+	rm -f $(TARGET)
 
 install: $(TARGET)
-        install -Dm755 $(TARGET) /usr/local/bin/$(TARGET)
+	install -Dm755 $(TARGET) /usr/local/bin/$(TARGET)
 
 remove:
-        rm -f /usr/local/bin/$(TARGET)
+	rm -f /usr/local/bin/$(TARGET)
