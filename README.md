@@ -26,8 +26,6 @@ info:
   · optimized for size
   · zero dependencies
   · native cpu optimizations
-  · link time optimization
-  · minimal binary size
   · super fast execution
 
 ────────────────────────────────────────────────
