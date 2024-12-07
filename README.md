@@ -8,7 +8,7 @@
 
 ## 📸 Screenshot
 
-![Preview](https://monke.party/f3rdfmvb.png)
+![Preview](https://monke.party/m9cx715g.png)
 
 ## ✨ Features
 
