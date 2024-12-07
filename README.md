@@ -12,7 +12,7 @@
 
 ## ✨ Features
 
-- **Tiny Footprint**: Approximately 0.016MB in size
+- **Tiny Footprint**: Less than 50KB in size
 - **Zero Dependencies**: Lightweight and clean implementation
 - **Native Optimizations**: Utilizes native CPU optimizations
 - **Lightning Fast**: Rapid system information retrieval
