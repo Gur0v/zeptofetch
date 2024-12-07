@@ -1,53 +1,56 @@
+# zeptofetch 🚀
+
+**A ultra-minimal system fetch tool**
+
+![GitHub license](https://img.shields.io/github/license/Gur0v/zeptofetch)
+![GitHub stars](https://img.shields.io/github/stars/Gur0v/zeptofetch)
+![Linux Support](https://img.shields.io/badge/platform-linux-brightgreen)
+
+## 📸 Screenshot
+
+![Preview](https://monke.party/f3rdfmvb.png)
+
+## ✨ Features
+
+- **Tiny Footprint**: Approximately 0.016MB in size
+- **Zero Dependencies**: Lightweight and clean implementation
+- **Native Optimizations**: Utilizes native CPU optimizations
+- **Lightning Fast**: Rapid system information retrieval
+
+## 🛠 Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/Gur0v/zeptofetch
+
+# Navigate to the project directory
+cd zeptofetch
+
+# Build & install the project
+make && sudo make install
 ```
-                 ·— zeptofetch —·                
-               ultra-minimal fetch                 
-────────────────────────────────────────────────
 
-    ___      user@hostname
-   (.· |     --------------
-   (<> |     OS: Linux
-  / __  \    Kernel: 5.15.172-generic
- ( /  \ /|   Shell: zsh
-_/\ __)/_)   WM: bspwm
-\/-____\/    Terminal: alacritty
+## 🖥 Compatibility
 
-────────────────────────────────────────────────
-size: ~0.016mb | lang: C | target: linux
-────────────────────────────────────────────────
+- **Primary Platform**: Linux
+- **Kernel Support**: 4.19+ recommended
+- **Experimental Support**: FreeBSD (requires editing of the Makefile)
 
-get:
-  git clone https://github.com/Gur0v/zeptofetch
-  cd zeptofetch
-  make
+## ⚠️ Current Limitations
 
-────────────────────────────────────────────────
+- Limited TTY support
+- Best experienced in graphical environments
 
-info:
-  · optimized for size
-  · zero dependencies
-  · native cpu optimizations
-  · super fast execution
+## 🤔 Why "Zepto"?
 
-────────────────────────────────────────────────
+The name "Zepto" comes from the SI prefix meaning 10⁻²¹ (one quintillionth). This name was chosen because zeptofetch is:
+- Approximately 83.2 times smaller than fastfetch
+- Approximately 23.25 times smaller than neofetch
 
-note:
-  · the app has poor tty support as of right now
-  and is intended to be ran in a graphical env.
-  · zeptofetch has very experimental support for
-  FreeBSD, just make sure that you have GCC pre-
-  sent or change gcc to clang in the Makefile
+## 🤝 Contributing
 
-────────────────────────────────────────────────
+Contributions are not being accepted at this time, as I am currently able to maintain the project independently.
 
-name:
-  "Zepto" is a prefix in the International Sys-
-   tem of Units (SI) that means 10⁻²¹ or one
-   quintillionth. I went with that name because
-   zeptofetch is approx. 83.2 times smaller than
-   fastfetch, and approx. 23.25 times smaller
-   than neofetch
+## 📄 License
 
-────────────────────────────────────────────────
-
-gpl-3.0 | @Gur0v
-```
+This project is licensed under the GPL-3.0 License.
