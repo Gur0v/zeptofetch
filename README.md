@@ -19,7 +19,7 @@ zeptofetch is a lightning-fast, minimalist system information retrieval tool des
 - **Microscopic Size**: Weighing less than 50KB
 - **Zero Dependencies**: Clean, self-contained implementation
 - **Native Performance**: Optimized with native CPU instructions
-- **Rapid Information Retrieval**: Instant system details display
+- **Rapid Information Retrieval**: Instant system details display [(Benchmark of zeptofetch-v1.0-rc1)](https://github.com/Gur0v/zeptofetch/commit/56daa35b5c15c132aef669d5ed29f9edda08c4e7#commitcomment-150075748)
 
 ## 🛠 Installation
 
