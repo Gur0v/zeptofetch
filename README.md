@@ -59,11 +59,6 @@ Color codes explained:
 
 Simply edit these definitions in `config.h` to personalize your zeptofetch appearance.
 
-## ⚠️ Current Limitations
-
-- Limited TTY support
-- Optimal performance in graphical environments
-
 ## 🤔 Why "Zepto"?
 
 The name "Zepto" derives from the SI prefix representing 10⁻²¹ (one quintillionth), symbolizing the tool's incredibly minimal footprint:
