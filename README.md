@@ -12,7 +12,7 @@ zeptofetch is a lightning-fast, minimalist system information retrieval tool des
 
 ## 📸 Preview
 
-![zeptofetch Preview](https://monke.party/m9cx715g.png)
+![zeptofetch Preview](https://monke.party/sish07tp.webp)
 
 ## ✨ Key Features
 
