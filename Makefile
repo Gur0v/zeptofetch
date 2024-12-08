@@ -1,5 +1,5 @@
 CC = cc
-CFLAGS = -march=native -O3 -pipe
+CFLAGS = -march=native -O2 -pipe
 TARGET = zeptofetch
 SRC = main.c system_info.c ui.c
 
