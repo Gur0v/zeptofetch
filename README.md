@@ -1,21 +1,25 @@
 # zeptofetch 🚀
 
-**A ultra-minimal system fetch tool**
+**An Ultra-Minimal System Information Fetch Tool**
 
-![GitHub license](https://img.shields.io/github/license/Gur0v/zeptofetch)
-![GitHub stars](https://img.shields.io/github/stars/Gur0v/zeptofetch)
+![GitHub License](https://img.shields.io/github/license/Gur0v/zeptofetch)
+![GitHub Stars](https://img.shields.io/github/stars/Gur0v/zeptofetch)
 ![Linux Support](https://img.shields.io/badge/platform-linux-brightgreen)
 
-## 📸 Screenshot
+## Overview
 
-![Preview](https://monke.party/m9cx715g.png)
+zeptofetch is a lightning-fast, minimalist system information retrieval tool designed for users who appreciate performance and simplicity. With its tiny footprint and zero external dependencies, zeptofetch provides a quick and elegant way to display system information.
 
-## ✨ Features
+## 📸 Preview
 
-- **Tiny Footprint**: Less than 50KB in size
-- **Zero Dependencies**: Lightweight and clean implementation
-- **Native Optimizations**: Utilizes native CPU optimizations
-- **Lightning Fast**: Rapid system information retrieval
+![zeptofetch Preview](https://monke.party/m9cx715g.png)
+
+## ✨ Key Features
+
+- **Microscopic Size**: Weighing less than 50KB
+- **Zero Dependencies**: Clean, self-contained implementation
+- **Native Performance**: Optimized with native CPU instructions
+- **Rapid Information Retrieval**: Instant system details display
 
 ## 🛠 Installation
 
@@ -26,30 +30,49 @@ git clone https://github.com/Gur0v/zeptofetch
 # Navigate to the project directory
 cd zeptofetch
 
-# Build & install the project
+# Build and install
 make && sudo make install
 ```
 
 ## 🖥 Compatibility
 
 - **Primary Platform**: Linux
-- **Kernel Support**: 4.19+ recommended
-- **Experimental Support**: FreeBSD (requires editing of the Makefile)
+- **Minimum Kernel Version**: 4.19+
+- **Experimental Support**: FreeBSD (requires Makefile modification)
+
+## 🎨 Color Customization
+
+zeptofetch allows easy color customization through the `config.h` file. You can modify the following color definitions:
+
+```c
+#define COLOR_RESET "\033[0m"     // Resets text to default terminal color
+#define COLOR_1     "\033[1;34m"  // Bright blue
+#define COLOR_2     "\033[1;37m"  // Bright white/light gray
+#define COLOR_3     "\033[1;38;5;208m"  // Bright orange (256-color palette)
+```
+
+Color codes explained:
+- `COLOR_RESET`: Restores default terminal text color
+- `COLOR_1`: Bold bright blue
+- `COLOR_2`: Bold bright white/light gray
+- `COLOR_3`: Bold bright orange (color index 208 in 256-color palette)
+
+Simply edit these definitions in `config.h` to personalize your zeptofetch appearance.
 
 ## ⚠️ Current Limitations
 
 - Limited TTY support
-- Best experienced in graphical environments
+- Optimal performance in graphical environments
 
 ## 🤔 Why "Zepto"?
 
-The name "Zepto" comes from the SI prefix meaning 10⁻²¹ (one quintillionth). This name was chosen because zeptofetch is:
+The name "Zepto" derives from the SI prefix representing 10⁻²¹ (one quintillionth), symbolizing the tool's incredibly minimal footprint:
 - Approximately 83.2 times smaller than fastfetch
 - Approximately 23.25 times smaller than neofetch
 
 ## 🤝 Contributing
 
-Contributions are not being accepted at this time, as I am currently able to maintain the project independently.
+While direct contributions are not currently being accepted, feedback and suggestions are always welcome.
 
 ## 📄 License
 
