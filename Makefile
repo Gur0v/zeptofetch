@@ -1,5 +1,5 @@
 CC = cc
-CFLAGS = -march=native -O2 -pipe
+CFLAGS = -march=native -O2 -s -fdelete-null-pointer-checks -fno-unwind-tables -fno-asynchronous-unwind-tables -fno-math-errno -pipe
 TARGET = zeptofetch
 SRC = main.c system_info.c ui.c
 
@@ -8,7 +8,7 @@ SRC = main.c system_info.c ui.c
 all: $(TARGET)
 
 $(TARGET): $(SRC)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(SRC)
+	$(CC) $(CFLAGS) -o $@ $(SRC)
 
 clean:
 	rm -f $(TARGET)
