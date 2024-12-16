@@ -19,7 +19,7 @@ zeptofetch is a lightning-fast, minimalist system information retrieval tool des
 - **Microscopic Size**: Weighing less than 50KB
 - **Zero Dependencies**: Clean, self-contained implementation
 - **Native Performance**: Optimized with native CPU instructions
-- **Rapid Information Retrieval**: Instant system details display [(Benchmark of zeptofetch-v1.0-rc1)](https://github.com/Gur0v/zeptofetch/commit/56daa35b5c15c132aef669d5ed29f9edda08c4e7#commitcomment-150075748)
+- **Rapid Information Retrieval**: Instant system details display
 
 ## 🛠 Installation
 
@@ -64,6 +64,28 @@ Simply edit these definitions in `config.h` to personalize your zeptofetch appea
 The name "Zepto" derives from the SI prefix representing 10⁻²¹ (one quintillionth), symbolizing the tool's incredibly minimal footprint:
 - Approximately 83.2 times smaller than fastfetch
 - Approximately 23.25 times smaller than neofetch
+
+
+## 📊 Performance Benchmarks
+
+### Test Environment
+- **System**: Bazzite 41, Linux 6.11.9
+- **Processor**: Intel Core i5-6600 (4 cores, 3.90 GHz)
+
+### Compilation Configurations
+
+| Config | Compiler Flags | Avg Time | Memory |
+|--------|----------------|----------|--------|
+| 1 | `-march=native -O2 -s` | **19.0 ms** | **16K** |
+| 2 | `-march=native -Os -s` | 20.3 ms | 16K |
+| 3 | `-march=native -O2` | 20.0 ms | 24K |
+| 4 | `-march=native -O3 -s` | 21.7 ms | 16K |
+| 5 | `-march=native -O2 -static` | 23.1 ms | 68K |
+
+**Key Findings** (zeptofetch v1.0-rc1): 
+- Fastest config: #1 at 19.0 ms
+- Most consistent performance
+- Minimal memory overhead
 
 ## 🤝 Contributing
 
