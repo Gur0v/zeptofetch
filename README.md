@@ -74,7 +74,7 @@ The name "Zepto" derives from the SI prefix representing 10⁻²¹ (one quintill
 
 ### Compilation Configurations
 
-| Config | Compiler Flags | Avg Time | Memory |
+| Config | Compiler Flags | Avg Time | Size |
 |--------|----------------|----------|--------|
 | 1 | `-march=native -O2 -s` | **19.0 ms** | **16K** |
 | 2 | `-march=native -Os -s` | 20.3 ms | 16K |
