@@ -94,3 +94,13 @@ While direct contributions are not currently being accepted, feedback and sugges
 ## 📄 License
 
 This project is licensed under the GPL-3.0 License.
+
+## 🌟 Star History
+
+<a href="https://star-history.com/#Gur0v/zeptofetch&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Gur0v/zeptofetch&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Gur0v/zeptofetch&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Gur0v/zeptofetch&type=Date" />
+ </picture>
+</a>
