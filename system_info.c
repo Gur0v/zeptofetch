@@ -126,39 +126,46 @@ void get_term(char *term, size_t size) {
         char name[BUFFER_SIZE] = {0};
         get_process_name(parent, name, sizeof(name));
 
-        if (strstr(name, "gnome-terminal")) {
+        char *base_name = strrchr(name, '/');
+        if (base_name) {
+            base_name++;
+        } else {
+            base_name = name;
+        }
+
+        if (strstr(base_name, "gnome-terminal")) {
             strncpy(term, "gnome-terminal", size);
             return;
-        } else if (strstr(name, "urxvtd")) {
+        } else if (strstr(base_name, "urxvtd")) {
             strncpy(term, "urxvt", size);
             return;
-        } else if (strstr(name, "konsole")) {
+        } else if (strstr(base_name, "konsole")) {
             strncpy(term, "Konsole", size);
             return;
-        } else if (strstr(name, "alacritty")) {
+        } else if (strstr(base_name, "alacritty")) {
             strncpy(term, "Alacritty", size);
             return;
-        } else if (strstr(name, "xterm")) {
+        } else if (strstr(base_name, "xterm")) {
             strncpy(term, "xterm", size);
             return;
-        } else if (strstr(name, "kitty")) {
+        } else if (strstr(base_name, "kitty")) {
             strncpy(term, "kitty", size);
             return;
-        } else if (strstr(name, "wayland-terminal")) {
+        } else if (strstr(base_name, "wayland-terminal")) {
             strncpy(term, "Wayland Terminal", size);
             return;
-        } else if (strstr(name, "ptyxis")) {
+        } else if (strstr(base_name, "ptyxis")) {
             strncpy(term, "ptyxis-agent", size);
             return;
         }
 
-        if (strstr(name, "bash") || strstr(name, "zsh") || strstr(name, "sh")) {
+        if (strstr(base_name, "bash") || strstr(base_name, "zsh") || strstr(base_name, "sh")) {
             parent = get_ppid(parent);
             continue;
         }
 
-        if (strlen(name) > 0) {
-            strncpy(term, name, size);
+        if (strlen(base_name) > 0) {
+            strncpy(term, base_name, size);
             return;
         }
 
