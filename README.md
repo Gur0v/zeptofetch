@@ -1,106 +1,110 @@
 # zeptofetch 🚀
 
-**An Ultra-Minimal System Information Fetch Tool**
+<div align="center">
 
-![GitHub License](https://img.shields.io/github/license/Gur0v/zeptofetch)
-![GitHub Stars](https://img.shields.io/github/stars/Gur0v/zeptofetch)
-![Linux Support](https://img.shields.io/badge/platform-linux-brightgreen)
+**The Ultra-Minimal System Information Fetch Tool**
 
-## Overview
+[![GitHub License](https://img.shields.io/github/license/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/blob/main/LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/stargazers)
+[![Linux Support](https://img.shields.io/badge/platform-linux-brightgreen)](https://github.com/Gur0v/zeptofetch#-compatibility)
 
-zeptofetch is a lightning-fast, minimalist system information retrieval tool designed for users who appreciate performance and simplicity. With its tiny footprint and zero external dependencies, zeptofetch provides a quick and elegant way to display system information.
+[Key Features](#-key-features) • [Installation](#-installation) • [Configuration](#-configuration) • [Benchmarks](#-performance-benchmarks) • [Contributing](#-contributing)
+
+</div>
+
+## 🎯 Overview
+
+zeptofetch is a lightning-fast, minimalist system information retrieval tool designed for users who appreciate performance and simplicity. With its microscopic footprint and zero external dependencies, zeptofetch provides the fastest way to display essential system information while maintaining elegant output formatting.
 
 ## 📸 Preview
 
 ![zeptofetch Preview](https://monke.party/sish07tp.webp)
 
+*Example output on Bazzite Linux with the stock color scheme*
+
 ## ✨ Key Features
 
-- **Microscopic Size**: Weighing less than 50KB
-- **Zero Dependencies**: Clean, self-contained implementation
-- **Native Performance**: Optimized with native CPU instructions
-- **Rapid Information Retrieval**: Instant system details display
+- **Microscopic Footprint**: Entire binary weighs less than 50KB
+- **Zero Dependencies**: Completely self-contained implementation
+- **Native Performance**: Leverages CPU-specific optimizations*
+- **Instant Display**: Sub-20ms information retrieval
+- **Customizable Output**: Easy color scheme modification
+- **Resource Efficient**: Minimal CPU and memory usage
 
 ## 🛠 Installation
 
+### Pre-built Binaries
+Download the pre-built binary from the [releases page](https://github.com/Gur0v/zeptofetch/releases).
+> *These are compiled with `-mtune=generic` for maximum compatibility across different CPU architectures. To benefit from CPU-specific optimizations, compile from source instead.
+
+### From Source
 ```bash
 # Clone the repository
 git clone https://github.com/Gur0v/zeptofetch
-
-# Navigate to the project directory
 cd zeptofetch
 
-# Build and install
-make && sudo make install
+# Build with optimal settings (includes CPU-specific optimizations)
+make
+
+# Install system-wide (optional)
+sudo make install
 ```
 
 ## 🖥 Compatibility
 
-- **Primary Platform**: Linux
-- **Minimum Kernel Version**: 4.19+
-- **Experimental Support**: FreeBSD (requires Makefile modification)
+### System Requirements
+- **Operating System**: Linux (primary), FreeBSD (requires source patching)
+- **Kernel Version**: 4.19 or newer
+- **Architecture**: x86_64
+- **Memory**: < 1MB RAM
 
-## 🎨 Color Customization
+## 🎨 Configuration
 
-zeptofetch allows easy color customization through the `config.h` file. You can modify the following color definitions:
+### Color Customization
+Edit `config.h` to personalize your output appearance:
 
 ```c
-#define COLOR_RESET "\033[0m"     // Resets text to default terminal color
-#define COLOR_1     "\033[1;34m"  // Bright blue
-#define COLOR_2     "\033[1;37m"  // Bright white/light gray
-#define COLOR_3     "\033[1;38;5;208m"  // Bright orange (256-color palette)
+// Default color scheme
+#define COLOR_RESET "\033[0m"     // Reset to terminal default
+#define COLOR_1     "\033[1;34m"  // Bright blue (headers)
+#define COLOR_2     "\033[1;37m"  // Bright white (values)
+#define COLOR_3     "\033[1;38;5;208m"  // Bright orange (accents)
 ```
-
-Color codes explained:
-- `COLOR_RESET`: Restores default terminal text color
-- `COLOR_1`: Bold bright blue
-- `COLOR_2`: Bold bright white/light gray
-- `COLOR_3`: Bold bright orange (color index 208 in 256-color palette)
-
-Simply edit these definitions in `config.h` to personalize your zeptofetch appearance.
-
-## 🤔 Why "Zepto"?
-
-The name "Zepto" derives from the SI prefix representing 10⁻²¹ (one quintillionth), symbolizing the tool's incredibly minimal footprint:
-- Approximately 83.2 times smaller than fastfetch
-- Approximately 23.25 times smaller than neofetch
-
 
 ## 📊 Performance Benchmarks
 
 ### Test Environment
 - **System**: Bazzite 41, Linux 6.11.9
-- **Processor**: Intel Core i5-6600 (4 cores, 3.90 GHz)
+- **Processor**: Intel Core i5-6600 (4C/4T @ 3.90 GHz)
 
 ### Compilation Configurations
 
-| Config | Compiler Flags | Avg Time | Size |
-|--------|----------------|----------|--------|
+| Config | Compiler Flags | Avg Time | Binary Size |
+|--------|---------------|-----------|-------------|
 | 1 | `-march=native -O2 -s` | **19.0 ms** | **16K** |
 | 2 | `-march=native -Os -s` | 20.3 ms | 16K |
 | 3 | `-march=native -O2` | 20.0 ms | 24K |
 | 4 | `-march=native -O3 -s` | 21.7 ms | 16K |
 | 5 | `-march=native -O2 -static` | 23.1 ms | 68K |
 
-**Key Findings** (zeptofetch v1.0-rc1): 
-- Fastest config: #1 at 19.0 ms
-- Most consistent performance
-- Minimal memory overhead
+*Benchmarks from zeptofetch v1.0-rc1*
+
+## 🤔 Why "Zepto"?
+
+The name "Zepto" comes from the SI prefix for 10⁻²¹ (one sextillionth), reflecting our commitment to minimal resource usage:
+
+- **~83x** smaller than fastfetch
+- **~23x** smaller than neofetch
 
 ## 🤝 Contributing
 
-While direct contributions are not currently being accepted, feedback and suggestions are always welcome.
+While I'm not currently accepting direct code contributions, I welcome:
 
-## 📄 License
+- Bug reports
+- Feature suggestions
 
-This project is licensed under the GPL-3.0 License.
+Please use the GitHub issues system for all contributions.
 
-## 🌟 Star History
+## 📝 License
 
-<a href="https://star-history.com/#Gur0v/zeptofetch&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Gur0v/zeptofetch&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Gur0v/zeptofetch&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Gur0v/zeptofetch&type=Date" />
- </picture>
-</a>
+zeptofetch is licensed under the [GPL-3.0 License](LICENSE).
