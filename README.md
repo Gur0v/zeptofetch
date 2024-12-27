@@ -35,7 +35,7 @@ zeptofetch is a lightning-fast, minimalist system information retrieval tool des
 
 ### Pre-built Binaries
 Download the pre-built binary from the [releases page](https://github.com/Gur0v/zeptofetch/releases).
-> *These are compiled with `-mtune=generic` for maximum compatibility across different CPU architectures. To benefit from CPU-specific optimizations, compile from source instead.
+> *These are compiled with `-mtune=generic` for maximum compatibility across different CPU architectures. Before you want to benefit from CPU-specific optimizations which you can get by compiling from source, check out the [benchmarks](#-performance-benchmarks).
 
 ### From Source
 ```bash
@@ -74,31 +74,32 @@ Edit `config.h` to personalize your output appearance:
 ## 📊 Performance Benchmarks
 
 ### Test Environment
-- **System**: Bazzite 41, Linux 6.11.9
-- **Processor**: Intel Core i5-6600 (4C/4T @ 3.90 GHz)
+- **System**: Arch Linux, Alpine Linux Container (for Musl)
+- **Kernel**: 6.12.6-2-[cachyos](https://cachyos.org/)
+- **Processor**: AMD Ryzen 5 5600 (6C/12T @ 4.47 GHz)
 
 ### Compilation Configurations
 
-| Config | Compiler Flags | Avg Time | Binary Size |
+| Config | Distribution | Avg Time | Binary Size |
 |--------|---------------|-----------|-------------|
-| 1 | `-march=native -O2 -s` | **19.0 ms** | **16K** |
-| 2 | `-march=native -Os -s` | 20.3 ms | 16K |
-| 3 | `-march=native -O2` | 20.0 ms | 24K |
-| 4 | `-march=native -O3 -s` | 21.7 ms | 16K |
-| 5 | `-march=native -O2 -static` | 23.1 ms | 68K |
+| 1 | From Source | 10.2 ms | 20K |
+| 2 | Glibc Binary | 10.1 ms | 20K |
+| 3 | Musl Binary | 12.7 ms | 16K |
+| 4 | Static Binary | 9.9 ms | 68K |
 
-*Benchmarks from zeptofetch v1.0-rc1*
+
+*Benchmarks from [zeptofetch v1.0-rc2](https://github.com/Gur0v/zeptofetch/releases/tag/v1.0-rc2)*
 
 ## 🤔 Why "Zepto"?
 
-The name "Zepto" comes from the SI prefix for 10⁻²¹ (one sextillionth), reflecting our commitment to minimal resource usage:
+The name "Zepto" comes from the [SI](https://en.wikipedia.org/wiki/International_System_of_Units) prefix for 10⁻²¹ (one sextillionth), reflecting our commitment to minimal resource usage:
 
 - **~83x** smaller than fastfetch
 - **~23x** smaller than neofetch
 
 ## 🤝 Contributing
 
-While I'm not currently accepting direct code contributions, I welcome:
+While I'm not currently accepting direct code contributions, I always welcome:
 
 - Bug reports
 - Feature suggestions
