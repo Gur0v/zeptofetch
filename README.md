@@ -14,7 +14,7 @@
 
 ## 🎯 Overview
 
-zeptofetch is a lightning-fast, minimalist system information retrieval tool designed for users who appreciate performance and simplicity. With its microscopic footprint and zero external dependencies, zeptofetch provides the fastest way to display essential system information while maintaining elegant output formatting.
+zeptofetch is a fast, minimalist system information retrieval tool designed for users who appreciate performance and simplicity. With its microscopic footprint, zero external dependencies, and modular codebase, zeptofetch provides the fastest way to display essential system information while maintaining elegant output formatting. The source code is organized into easily modifiable components, making it simple to customize the information displayed or add new features.
 
 ## 📸 Preview
 
