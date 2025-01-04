@@ -54,7 +54,7 @@ sudo make install
 ## 🖥 Compatibility
 
 ### System Requirements
-- **Operating System**: GNU/Linux & ~~GNU~~ Linux* (primary), FreeBSD (requires source patching)
+- **Operating System**: GNU/Linux & ~~GNU~~ Linux* (both are supported), FreeBSD (requires source patching)
 - **Kernel Version**: 4.19 or newer
 - **Architecture**: x86_64
 - **Memory**: < 1MB RAM
