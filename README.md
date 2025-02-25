@@ -24,7 +24,7 @@ zeptofetch is a fast, minimalist system information retrieval tool designed for 
 
 ## ✨ Key Features
 
-- **Microscopic Footprint**: Entire binary weighs less than 50KB
+- **Microscopic Footprint**: Entire binary weighs less than 100KB
 - **Zero Dependencies**: Completely self-contained implementation
 - **Native Performance**: Leverages CPU-specific optimizations*
 - **Instant Display**: Sub-20ms information retrieval
