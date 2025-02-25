@@ -1,7 +1,7 @@
 CC = cc
 CFLAGS = -march=native -O2 -s -fdelete-null-pointer-checks -fno-unwind-tables -fno-asynchronous-unwind-tables -fno-math-errno -pipe
 TARGET = zeptofetch
-SRC = main.c system_info.c ui.c
+SRC = zeptofetch.c
 
 .PHONY: all clean install remove
 
