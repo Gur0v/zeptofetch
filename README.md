@@ -35,7 +35,7 @@ zeptofetch is a fast, minimalist system information retrieval tool designed for 
 
 ### Pre-built Binaries
 Download the pre-built binary from the [releases page](https://github.com/Gur0v/zeptofetch/releases).
-> *These are compiled with `march=x86-64 -mtune=generic` for maximum compatibility across different CPU architectures. Before you want to benefit from CPU-specific optimizations which you can get by compiling from source, check out the [benchmarks](#-performance-benchmarks).
+> *These are compiled with `-march=x86-64 -mtune=generic` for maximum compatibility across different CPU architectures. Before you want to benefit from CPU-specific optimizations which you can get by compiling from source, check out the [benchmarks](#-performance-benchmarks).
 
 ### From Source
 ```bash
