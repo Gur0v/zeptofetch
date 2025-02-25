@@ -53,10 +53,8 @@ sudo make install
 ## 🖥 Compatibility
 
 ### System Requirements
-- **Operating System**: GNU/Linux & ~~GNU~~ Linux* (both are supported), FreeBSD (requires source patching)
-- **Kernel Version**: 4.19 or newer
+- **Operating System**: GNU/Linux & ~~GNU~~ Linux* (both are supported)
 - **Architecture**: x86_64
-- **Memory**: < 1MB RAM
 > *Non-GNU Linux is supported (Void, Alpine, Gentoo, etc) but Android is **NOT supported.**
 
 ## 🎨 Configuration
