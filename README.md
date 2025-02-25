@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**The Ultra-Minimal System Information Fetch Tool**
+**The Ultra-Minimal System Information Tool**
 
 [![GitHub License](https://img.shields.io/github/license/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/blob/main/LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/stargazers)
