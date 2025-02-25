@@ -18,10 +18,9 @@ zeptofetch is a fast, minimalist system information retrieval tool designed for 
 
 ## 📸 Preview
 
-![zeptofetch Preview](https://monke.party/sish07tp.webp)
+![zeptofetch Preview](https://monke.party/vsw3g1up.webp)
 
-*Example output on Bazzite Linux with the stock color scheme.*
-> *The line beneath the username and hostname (--------------) is now dynamically "adjusted" to match the exact length since the release of zeptofetch v1.0-rc2*
+*Example output on Gentoo Linux with the stock color scheme.*
 
 ## ✨ Key Features
 
