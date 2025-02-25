@@ -35,7 +35,7 @@ zeptofetch is a fast, minimalist system information retrieval tool designed for 
 
 ### Pre-built Binaries
 Download the pre-built binary from the [releases page](https://github.com/Gur0v/zeptofetch/releases).
-> *These are compiled with `-mtune=generic` for maximum compatibility across different CPU architectures. Before you want to benefit from CPU-specific optimizations which you can get by compiling from source, check out the [benchmarks](#-performance-benchmarks).
+> *These are compiled with `march=x86-64 -mtune=generic` for maximum compatibility across different CPU architectures. Before you want to benefit from CPU-specific optimizations which you can get by compiling from source, check out the [benchmarks](#-performance-benchmarks).
 
 ### From Source
 ```bash
@@ -55,7 +55,7 @@ sudo make install
 ### System Requirements
 - **Operating System**: GNU/Linux & ~~GNU~~ Linux* (both are supported)
 - **Architecture**: x86_64
-> *Non-GNU Linux is supported (Void, Alpine, Gentoo, etc) but Android is **NOT supported.**
+> *Non-GNU Linux distros are supported (Void, Alpine, Gentoo, etc) but Android is **NOT supported.**
 
 ## 🎨 Configuration
 
@@ -63,7 +63,6 @@ sudo make install
 Edit `config.h` to personalize your output appearance:
 
 ```c
-// Default color scheme
 #define COLOR_RESET "\033[0m"     // Reset to terminal default
 #define COLOR_1     "\033[1;34m"  // Bright blue (headers)
 #define COLOR_2     "\033[1;37m"  // Bright white (values)
