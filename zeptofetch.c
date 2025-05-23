@@ -4,194 +4,176 @@
 #include <unistd.h>
 #include <sys/utsname.h>
 #include <pwd.h>
-#include <limits.h>
 #include <fcntl.h>
+#include <limits.h>
 #include "config.h"
 
-static pid_t get_ppid(pid_t pid) {
-    char path[BUFFER_SIZE];
-    snprintf(path, sizeof(path), "/proc/%d/stat", pid);
-    FILE *stat_file = fopen(path, "r");
-    if (!stat_file) return -1;
-
-    pid_t ppid;
-    int result = fscanf(stat_file, "%*d %*s %*c %d", &ppid);
-    fclose(stat_file);
-
-    return (result == 1) ? ppid : -1;
+void scpy(char *d, const char *s, size_t n) {
+    if (!d || !n) return;
+    strncpy(d, s, n - 1);
+    d[n - 1] = '\0';
 }
 
-static void get_process_name(pid_t pid, char *name, size_t size) {
-    char path[BUFFER_SIZE];
-    snprintf(path, sizeof(path), "/proc/%d/exe", pid);
-    ssize_t len = readlink(path, name, size - 1);
-    if (len != -1) {
-        name[len] = '\0';
+pid_t ppid(pid_t pid) {
+    char p[BUFFER_SIZE];
+    FILE *f;
+    pid_t pp;
+    snprintf(p, sizeof(p), "/proc/%d/stat", pid);
+    if (!(f = fopen(p, "r"))) return -1;
+    fscanf(f, "%*d %*s %*c %d", &pp);
+    fclose(f);
+    return pp;
+}
+
+void pexe(pid_t pid, char *b, size_t n) {
+    char p[BUFFER_SIZE];
+    ssize_t l;
+    snprintf(p, sizeof(p), "/proc/%d/exe", pid);
+    if ((l = readlink(p, b, n - 1)) != -1)
+        b[l] = '\0';
+    else
+        scpy(b, "Unknown", n);
+}
+
+void uname_s(char *u, size_t n) {
+    struct passwd *pw = getpwuid(getuid());
+    scpy(u, getenv("USER") ?: (pw && pw->pw_name ? pw->pw_name : "Unknown"), n);
+}
+
+void hname(char *h, size_t n) {
+    if (gethostname(h, n))
+        scpy(h, "Unknown", n);
+}
+
+void shname(char *s, size_t n) {
+    char p[PATH_MAX], b[PATH_MAX];
+    pid_t par = ppid(getpid());
+    snprintf(p, sizeof(p), PROC_PATH_FORMAT, par);
+    ssize_t l = readlink(p, b, sizeof(b) - 1);
+    if (l > 0) {
+        b[l] = '\0';
+        scpy(s, strrchr(b, '/') + 1, n);
     } else {
-        strncpy(name, "Unknown", size);
+        scpy(s, "Unknown", n);
     }
 }
 
-void get_username(char *username, size_t size) {
-    char *env_user = getenv("USER");
-    struct passwd *pwd = getpwuid(getuid());
-    strncpy(username, env_user ? env_user : (pwd && pwd->pw_name ? pwd->pw_name : "Unknown"), size);
-}
-
-void get_hostname(char *hostname, size_t size) {
-    if (gethostname(hostname, size) != 0) {
-        strncpy(hostname, "Unknown", size);
-    }
-}
-
-void get_shell(char *shell, size_t size) {
-    char path[PATH_MAX];
-    snprintf(path, sizeof(path), PROC_PATH_FORMAT, getppid());
-    ssize_t len = readlink(path, shell, size - 1);
-    if (len != -1) {
-        shell[len] = '\0';
-        strncpy(shell, strrchr(shell, '/') + 1, size);
-    } else {
-        strncpy(shell, "Unknown", size);
-    }
-}
-
-void get_wm(char *wm, size_t size) {
-    FILE *proc = popen(
+void wmname(char *w, size_t n) {
+    static const char *list[] = {
+        "dwm", "i3", "xfwm4", "openbox", "kwin", "sway", "gnome-shell",
+        "mate-session", "xfce4-session", "lxqt", "cinnamon", "fluxbox",
+        "herbstluftwm", "bspwm", "awesome", "spectrwm", "wmii", "xmonad", "icewm", "jwm"
+    };
+    FILE *fp = popen(
         "ps -e | grep -E 'dwm|i3|xfwm4|openbox|kwin|sway|gnome-shell|mate-session|xfce4-session|lxqt|cinnamon|fluxbox|herbstluftwm|bspwm|awesome|spectrwm|wmii|xmonad|icewm|jwm' | awk '{print $4}'",
         "r"
     );
-    if (proc && fgets(wm, size, proc)) {
-        wm[strcspn(wm, "\n")] = '\0';
-    } else {
-        strncpy(wm, "Unknown", size);
-    }
-    if (proc) pclose(proc);
+    if (!fp || !fgets(w, n, fp)) goto fail;
+    w[strcspn(w, "\n")] = '\0';
+    for (size_t i = 0; i < sizeof(list) / sizeof(*list); ++i)
+        if (strstr(w, list[i])) {
+            scpy(w, list[i], n);
+            pclose(fp);
+            return;
+        }
+fail:
+    scpy(w, "Unknown", n);
+    if (fp) pclose(fp);
 }
 
-void get_term(char *term, size_t size) {
-    char *term_program = getenv("TERM_PROGRAM");
-    char *ssh_connection = getenv("SSH_CONNECTION");
-    char *wt_session = getenv("WT_SESSION");
-    char *term_env = getenv("TERM");
-
-    if (term_program) {
-        if (strcmp(term_program, "iTerm.app") == 0) {
-            strncpy(term, "iTerm2", size - 1);
-        } else if (strcmp(term_program, "Terminal.app") == 0) {
-            strncpy(term, "Apple Terminal", size - 1);
-        } else if (strcmp(term_program, "Hyper") == 0) {
-            strncpy(term, "HyperTerm", size - 1);
-        } else {
-            strncpy(term, term_program, size - 1);
-        }
-        term[size - 1] = '\0';
+void termname(char *t, size_t n) {
+    if (getenv("TERM_PROGRAM")) {
+        const char *tp = getenv("TERM_PROGRAM");
+        if      (!strcmp(tp, "iTerm.app"))       scpy(t, "iTerm2", n);
+        else if (!strcmp(tp, "Terminal.app"))    scpy(t, "Apple Terminal", n);
+        else if (!strcmp(tp, "Hyper"))           scpy(t, "HyperTerm", n);
+        else                                     scpy(t, tp, n);
         return;
     }
-
-    if (term_env) {
-        if (strcmp(term_env, "tw52") == 0 || strcmp(term_env, "tw100") == 0) {
-            strncpy(term, "TosWin2", size - 1);
-            term[size - 1] = '\0';
+    if (getenv("WT_SESSION"))            { scpy(t, "Windows Terminal", n); return; }
+    if (getenv("SSH_CONNECTION") && getenv("SSH_TTY")) {
+        scpy(t, getenv("SSH_TTY"), n);
+        return;
+    }
+    if (getenv("TERM")) {
+        const char *te = getenv("TERM");
+        if (!strcmp(te, "tw52") || !strcmp(te, "tw100")) {
+            scpy(t, "TosWin2", n);
             return;
         }
     }
-
-    if (ssh_connection) {
-        char *ssh_tty = getenv("SSH_TTY");
-        if (ssh_tty) {
-            strncpy(term, ssh_tty, size - 1);
-            term[size - 1] = '\0';
-            return;
-        }
-    }
-
-    if (wt_session) {
-        strncpy(term, "Windows Terminal", size - 1);
-        term[size - 1] = '\0';
-        return;
-    }
-
-    pid_t parent = getppid();
-    while (parent > 0) {
-        char name[BUFFER_SIZE] = {0};
-        get_process_name(parent, name, sizeof(name));
-        char *base_name = strrchr(name, '/');
-        if (base_name) base_name++;
-        else base_name = name;
-
-        if (strstr(base_name, "gnome-terminal")) {
-            strncpy(term, "gnome-terminal", size - 1);
-        } else if (strstr(base_name, "urxvtd")) {
-            strncpy(term, "urxvt", size - 1);
-        } else if (strstr(base_name, "konsole")) {
-            strncpy(term, "Konsole", size - 1);
-        } else if (strstr(base_name, "alacritty")) {
-            strncpy(term, "Alacritty", size - 1);
-        } else if (strstr(base_name, "xterm")) {
-            strncpy(term, "xterm", size - 1);
-        } else if (strstr(base_name, "kitty")) {
-            strncpy(term, "kitty", size - 1);
-        } else if (strstr(base_name, "wayland-terminal")) {
-            strncpy(term, "Wayland Terminal", size - 1);
-        } else if (strstr(base_name, "ptyxis")) {
-            strncpy(term, "ptyxis-agent", size - 1);
-        }
-
-        if (strstr(base_name, "bash") || strstr(base_name, "zsh") || strstr(base_name, "sh")) {
-            parent = get_ppid(parent);
+    pid_t par = ppid(getpid());
+    while (par > 0) {
+        char name[BUFFER_SIZE];
+        pexe(par, name, sizeof(name));
+        char *base = strrchr(name, '/');
+        base = base ? base + 1 : name;
+        struct { const char *m, *p; } map[] = {
+            {"gnome-terminal", "gnome-terminal"},
+            {"urxvtd", "urxvt"},
+            {"konsole", "Konsole"},
+            {"alacritty", "Alacritty"},
+            {"xterm", "xterm"},
+            {"kitty", "kitty"},
+            {"wayland-terminal", "Wayland Terminal"},
+            {"ptyxis", "ptyxis-agent"}
+        };
+        for (size_t i = 0; i < sizeof(map) / sizeof(*map); ++i)
+            if (strstr(base, map[i].m)) {
+                scpy(t, map[i].p, n);
+                return;
+            }
+        if (strstr(base, "bash") || strstr(base, "zsh") || strstr(base, "sh")) {
+            par = ppid(par);
             continue;
         }
-
-        if (strlen(base_name) > 0) {
-            strncpy(term, base_name, size - 1);
-            term[size - 1] = '\0';
+        if (*base) {
+            scpy(t, base, n);
             return;
         }
-        parent = get_ppid(parent);
+        par = ppid(par);
     }
-
-    if (term_env) {
-        strncpy(term, term_env, size - 1);
-        term[size - 1] = '\0';
-    } else {
-        strncpy(term, "Unknown", size - 1);
-        term[size - 1] = '\0';
-    }
-}
-void get_distro(char *distro, size_t size) {
-    FILE *os_release = fopen("/etc/os-release", "r");
-    if (os_release) {
-        char line[BUFFER_SIZE];
-        while (fgets(line, sizeof(line), os_release)) {
-            if (strncmp(line, "PRETTY_NAME=", 12) == 0) {
-                char *start = strchr(line, '"');
-                char *end = strrchr(line, '"');
-                if (start && end && start != end) {
-                    *end = '\0';
-                    strncpy(distro, start + 1, size);
-                } else {
-                    strncpy(distro, "Unknown", size);
-                }
-                break;
-            }
-        }
-        fclose(os_release);
-    } else {
-        strncpy(distro, "Unknown", size);
-    }
+    scpy(t, "Unknown", n);
 }
 
-void print_ui(const char *username, const char *hostname, const char *distro, const char *kernel,
-              const char *shell, const char *wm, const char *terminal) {
-    size_t line_length = strlen(username) + 1 + strlen(hostname);
-    char *separator = malloc(line_length + 1);
-    if (!separator) {
-        perror("Error allocating memory for separator");
+void distro(char *d, size_t n) {
+    FILE *f = fopen("/etc/os-release", "r");
+    if (!f) {
+        scpy(d, "Unknown", n);
         return;
     }
-    memset(separator, '-', line_length);
-    separator[line_length] = '\0';
+    char line[BUFFER_SIZE];
+    while (fgets(line, sizeof(line), f)) {
+        if (!strncmp(line, "PRETTY_NAME=", 12)) {
+            char *s = strchr(line, '"'), *e = strrchr(line, '"');
+            if (s && e && s < e) {
+                *e = '\0';
+                scpy(d, s + 1, n);
+            } else {
+                scpy(d, "Unknown", n);
+            }
+            fclose(f);
+            return;
+        }
+    }
+    scpy(d, "Unknown", n);
+    fclose(f);
+}
+
+void print_info(
+    const char *u,
+    const char *h,
+    const char *d,
+    const char *k,
+    const char *s,
+    const char *w,
+    const char *t
+) {
+    size_t sl = strlen(u) + strlen(h) + 1;
+    char *sep = malloc(sl + 1);
+    if (!sep) return;
+    memset(sep, '-', sl);
+    sep[sl] = '\0';
 
     printf(
         "%s    ___ %s     %s%s@%s%s\n"
@@ -199,39 +181,50 @@ void print_ui(const char *username, const char *hostname, const char *distro, co
         "%s   (%s<>%s %s|%s     %sOS:%s %s\n"
         "%s  / %s__  %s\\%s    %sKernel:%s %s\n"
         "%s ( %s/  \\ %s/|%s   %sShell:%s %s\n"
-        "%s%s_%s/\\ %s__)%s/%s_%s)%s   %sWM:%s %s\n"
+        "%s%s_/%s\\ %s__)%s/%s_%s)%s   %sWM:%s %s\n"
         "%s%s\\/%s-____%s\\/%s    %sTerminal:%s %s\n\n",
-        COLOR_1, COLOR_RESET, COLOR_1, username, hostname, COLOR_RESET,
-        COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, separator,
-        COLOR_1, COLOR_2, COLOR_RESET, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, distro,
-        COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, kernel,
-        COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, shell,
-        COLOR_1, COLOR_3, COLOR_1, COLOR_2, COLOR_1, COLOR_3, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, wm,
-        COLOR_1, COLOR_3, COLOR_1, COLOR_3, COLOR_RESET, COLOR_3, COLOR_RESET, terminal
+        COLOR_1, COLOR_RESET, COLOR_1, u, h, COLOR_RESET,
+        COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, sep,
+        COLOR_1, COLOR_2, COLOR_RESET, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, d,
+        COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, k,
+        COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, s,
+        COLOR_1, COLOR_3, COLOR_1, COLOR_2, COLOR_1, COLOR_3, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, w,
+        COLOR_1, COLOR_3, COLOR_1, COLOR_3, COLOR_RESET, COLOR_3, COLOR_RESET, t
     );
 
-    free(separator);
+    free(sep);
 }
 
 int main() {
-    char username[BUFFER_SIZE], hostname[BUFFER_SIZE];
-    char shell[BUFFER_SIZE], wm[BUFFER_SIZE];
-    char terminal[BUFFER_SIZE], distro[BUFFER_SIZE];
-    struct utsname sys_info;
+    char u[BUFFER_SIZE];
+    char h[BUFFER_SIZE];
+    char s[BUFFER_SIZE];
+    char w[BUFFER_SIZE];
+    char t[BUFFER_SIZE];
+    char d[BUFFER_SIZE];
+    struct utsname info;
 
-    if (uname(&sys_info) == -1) {
-        perror("Error getting system information");
-        return EXIT_FAILURE;
+    if (uname(&info)) {
+        perror("uname");
+        return 1;
     }
 
-    get_username(username, sizeof(username));
-    get_hostname(hostname, sizeof(hostname));
-    get_distro(distro, sizeof(distro));
-    get_shell(shell, sizeof(shell));
-    get_wm(wm, sizeof(wm));
-    get_term(terminal, sizeof(terminal));
+    uname_s(u, sizeof(u));
+    hname(h, sizeof(h));
+    shname(s, sizeof(s));
+    wmname(w, sizeof(w));
+    termname(t, sizeof(t));
+    distro(d, sizeof(d));
 
-    print_ui(username, hostname, distro, sys_info.release, shell, wm, terminal);
+    print_info(
+        u,
+        h,
+        d,
+        info.release,
+        s,
+        w,
+        t
+    );
 
-    return EXIT_SUCCESS;
+    return 0;
 }
