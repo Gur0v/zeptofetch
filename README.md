@@ -18,7 +18,7 @@ zeptofetch is a fast, minimalist system information retrieval tool designed for 
 
 ## 📸 Preview
 
-![zeptofetch Preview](https://monke.party/vsw3g1up.webp)
+![zeptofetch Preview](https://hvh.life/vsw3g1up.webp)
 
 *Example output on Gentoo Linux with the stock color scheme.*
 
