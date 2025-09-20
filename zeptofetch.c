@@ -5,51 +5,90 @@
 #include <sys/utsname.h>
 #include <pwd.h>
 #include <limits.h>
+#include <ctype.h>
 #include "config.h"
 
-// Safe string copy utility
+#define MAX_PATH_LEN    256
+#define MAX_LINE_LEN    256
+#define MAX_ENV_LEN     64
+#define PATH_BUF_SIZE   4096
+
 static void safe_copy(char *dest, const char *src, size_t size) {
-    if (!dest || size == 0) return;
+    if (!dest || size == 0) 
+        return;
     strncpy(dest, src, size - 1);
     dest[size - 1] = '\0';
 }
 
-// Process utilities
-static pid_t parent_pid(pid_t pid) {
-    char path[256];
-    FILE *file;
-    pid_t ppid_val;
-    
-    snprintf(path, sizeof(path), "/proc/%d/stat", pid);
-    file = fopen(path, "r");
-    if (!file) return -1;
-    
-    fscanf(file, "%*d %*s %*c %d", &ppid_val);
-    fclose(file);
-    return ppid_val;
+static int is_valid_pid(pid_t pid) {
+    return pid > 0 && pid <= 4194304;
 }
 
-static void process_executable(pid_t pid, char *buffer, size_t size) {
-    char path[256];
-    ssize_t len;
+static pid_t parent_pid(pid_t pid) {
+    char path[MAX_PATH_LEN];
+    FILE *file;
+    pid_t ppid_val;
+    int written;
     
-    snprintf(path, sizeof(path), "/proc/%d/exe", pid);
+    if (!is_valid_pid(pid)) 
+        return -1;
+    
+    written = snprintf(path, sizeof(path), "/proc/%d/stat", pid);
+    if (written < 0 || written >= (int)sizeof(path)) 
+        return -1;
+    
+    file = fopen(path, "r");
+    if (!file) 
+        return -1;
+    
+    if (fscanf(file, "%*d %*s %*c %d", &ppid_val) != 1) {
+        fclose(file);
+        return -1;
+    }
+    fclose(file);
+    
+    return is_valid_pid(ppid_val) ? ppid_val : -1;
+}
+
+static int process_executable(pid_t pid, char *buffer, size_t size) {
+    char path[MAX_PATH_LEN];
+    ssize_t len;
+    int written;
+    
+    if (!is_valid_pid(pid) || !buffer || size == 0) 
+        return -1;
+    
+    written = snprintf(path, sizeof(path), "/proc/%d/exe", pid);
+    if (written < 0 || written >= (int)sizeof(path)) 
+        return -1;
+    
     len = readlink(path, buffer, size - 1);
     if (len != -1) {
         buffer[len] = '\0';
-    } else {
-        safe_copy(buffer, "unknown", size);
+        return 0;
     }
+    return -1;
 }
 
-// System information collection
 static void get_user(char *user, size_t size) {
     struct passwd *pw = getpwuid(getuid());
     const char *env_user = getenv("USER");
     
-    if (env_user) {
-        safe_copy(user, env_user, size);
-    } else if (pw && pw->pw_name) {
+    if (env_user && strlen(env_user) < MAX_ENV_LEN) {
+        int valid = 1;
+        for (size_t i = 0; env_user[i] != '\0'; i++) {
+            if (!isalnum(env_user[i]) && env_user[i] != '_' && env_user[i] != '-') {
+                valid = 0;
+                break;
+            }
+        }
+        if (valid) {
+            safe_copy(user, env_user, size);
+            return;
+        }
+    }
+    
+    if (pw && pw->pw_name) {
         safe_copy(user, pw->pw_name, size);
     } else {
         safe_copy(user, "user", size);
@@ -63,12 +102,24 @@ static void get_host(char *host, size_t size) {
 }
 
 static void get_shell(char *shell, size_t size) {
-    char path[PATH_MAX], exe_path[PATH_MAX];
+    char path[PATH_BUF_SIZE];
+    char exe_path[PATH_BUF_SIZE];
     pid_t parent = parent_pid(getpid());
+    ssize_t len;
+    int written;
     
-    snprintf(path, sizeof(path), PROC_PATH_FORMAT, parent);
-    ssize_t len = readlink(path, exe_path, sizeof(exe_path) - 1);
+    if (parent <= 0) {
+        safe_copy(shell, "unknown", size);
+        return;
+    }
     
+    written = snprintf(path, sizeof(path), "/proc/%d/exe", parent);
+    if (written < 0 || written >= (int)sizeof(path)) {
+        safe_copy(shell, "unknown", size);
+        return;
+    }
+    
+    len = readlink(path, exe_path, sizeof(exe_path) - 1);
     if (len > 0) {
         exe_path[len] = '\0';
         char *base = strrchr(exe_path, '/');
@@ -84,7 +135,14 @@ static void get_wm(char *wm, size_t size) {
         "sway", "gnome-shell", "mutter", "mate-session", "marco", "xfce4-session",
         "lxqt", "cinnamon", "muffin", "fluxbox", "herbstluftwm", "bspwm",
         "awesome", "spectrwm", "wmii", "xmonad", "icewm", "jwm", "hyprland",
-        "river", "wayfire", "labwc", "cage"
+        "river", "wayfire", "labwc", "cage", "leftwm", "frankenwm", "2bwm",
+        "catwm", "echinus", "evilwm", "qtile", "stumpwm", "notion", "snapwm",
+        "howm", "wingo", "monsterwm", "tinywm", "dminiwm", "dtwm", "ctwm",
+        "vwm", "9wm", "w9wm", "pawm", "pekwm", "fvwm", "enlightenment",
+        "compiz", "metacity", "waimea", "afterstep", "windowmaker", "blackbox",
+        "fvwm-crystal", "mlvwm", "olivetti", "plwm", "pwm", "ratpoison", "sithwm",
+        "uwm", "vtwm", "wm2", "wmx", "larswm", "goomwwm", "mwwm", "acme",
+        "scrotwm", "subtle", "berry", "howm", "lwm", "mwm", "nwm"
     };
     
     FILE *ps = popen("ps -eo comm --no-headers", "r");
@@ -93,13 +151,15 @@ static void get_wm(char *wm, size_t size) {
         return;
     }
     
-    char line[256];
+    char line[MAX_LINE_LEN];
     while (fgets(line, sizeof(line), ps)) {
         line[strcspn(line, "\n")] = '\0';
         
+        if (strlen(line) == 0) 
+            continue;
+        
         for (size_t i = 0; i < sizeof(known_wms) / sizeof(*known_wms); i++) {
             if (strcmp(line, known_wms[i]) == 0) {
-                // Handle special cases
                 if (strcmp(line, "gnome-shell") == 0) {
                     safe_copy(wm, "mutter", size);
                 } else if (strcmp(line, "mate-session") == 0) {
@@ -125,14 +185,24 @@ static void get_terminal(char *term, size_t size) {
     pid_t parent = parent_pid(getpid());
     
     while (parent > 0) {
-        char name[256];
-        process_executable(parent, name, sizeof(name));
+        char name[PATH_BUF_SIZE];
+        if (process_executable(parent, name, sizeof(name)) != 0) {
+            parent = parent_pid(parent);
+            continue;
+        }
         
         char *base = strrchr(name, '/');
         base = base ? base + 1 : name;
         
-        // Common terminal mappings
-        struct { const char *match; const char *name; } terminals[] = {
+        if (strstr(base, "bash") || strstr(base, "zsh") || strstr(base, "sh")) {
+            parent = parent_pid(parent);
+            continue;
+        }
+        
+        struct { 
+            const char *match; 
+            const char *name; 
+        } terminals[] = {
             {"gnome-terminal", "gnome-terminal"},
             {"urxvtd", "urxvt"},
             {"konsole", "konsole"},
@@ -153,7 +223,37 @@ static void get_terminal(char *term, size_t size) {
             {"wayland-terminal", "Wayland Terminal"},
             {"ptyxis", "ptyxis"},
             {"rio", "rio"},
-            {"ghostty", "ghostty"}
+            {"ghostty", "ghostty"},
+            {"contour", "contour"},
+            {"tabby", "tabby"},
+            {"hyper", "hyper"},
+            {"yakuake", "yakuake"},
+            {"roxterm", "roxterm"},
+            {"sakura", "sakura"},
+            {"tilda", "tilda"},
+            {"guake", "guake"},
+            {"cool-retro-term", "cool-retro-term"},
+            {"eterm", "eterm"},
+            {"mlterm", "mlterm"},
+            {"lilyterm", "lilyterm"},
+            {"roxterm", "roxterm"},
+            {"aterm", "aterm"},
+            {"evilvte", "evilvte"},
+            {"pangoterm", "pangoterm"},
+            {"valaterm", "valaterm"},
+            {"stterm", "stterm"},
+            {"xvt", "xvt"},
+            {"nxterm", "nxterm"},
+            {"kterm", "kterm"},
+            {"mlterm", "mlterm"},
+            {"dtterm", "dtterm"},
+            {"mrxvt", "mrxvt"},
+            {"multi-gnome-terminal", "multi-gnome-terminal"},
+            {"pterm", "pterm"},
+            {"wterm", "wterm"},
+            {"yaft", "yaft"},
+            {"fbterm", "fbterm"},
+            {"koi8rxterm", "koi8rxterm"}
         };
         
         for (size_t i = 0; i < sizeof(terminals) / sizeof(*terminals); i++) {
@@ -163,13 +263,6 @@ static void get_terminal(char *term, size_t size) {
             }
         }
         
-        // Skip shell processes
-        if (strstr(base, "bash") || strstr(base, "zsh") || strstr(base, "sh")) {
-            parent = parent_pid(parent);
-            continue;
-        }
-        
-        // Return process name if found
         if (strlen(base) > 0) {
             safe_copy(term, base, size);
             return;
@@ -188,7 +281,7 @@ static void get_os(char *os, size_t size) {
         return;
     }
     
-    char line[256];
+    char line[MAX_LINE_LEN];
     while (fgets(line, sizeof(line), file)) {
         if (strncmp(line, "PRETTY_NAME=", 12) == 0) {
             char *start = strchr(line, '"');
@@ -209,7 +302,6 @@ static void get_os(char *os, size_t size) {
     fclose(file);
 }
 
-// Display functions
 static void print_separator(size_t length) {
     for (size_t i = 0; i < length; i++) {
         putchar('-');
@@ -220,37 +312,32 @@ static void print_separator(size_t length) {
 static void display_info(const char *user, const char *host, const char *os, 
                         const char *kernel, const char *shell, 
                         const char *wm, const char *terminal) {
-    // Calculate the length for the separator under user@host
-    size_t user_host_length = strlen(user) + strlen(host) + 1; // +1 for @
+    size_t user_host_length = strlen(user) + strlen(host) + 1;
     
-    printf(
-        "%s    ___ %s     %s%s@%s%s\n"
-        "%s   (%s.· %s|%s     ",
-        COLOR_1, COLOR_RESET, COLOR_1, user, host, COLOR_RESET,
-        COLOR_1, COLOR_2, COLOR_1, COLOR_RESET
-    );
+    printf("%s    ___ %s     %s%s@%s%s\n", 
+           COLOR_1, COLOR_RESET, COLOR_1, user, host, COLOR_RESET);
+    printf("%s   (%s.· %s|%s     ", 
+           COLOR_1, COLOR_2, COLOR_1, COLOR_RESET);
     print_separator(user_host_length);
     
-    printf(
-        "%s   (%s<>%s %s|%s     %sOS:%s %s\n"
-        "%s  / %s__  %s\\%s    %sKernel:%s %s\n"
-        "%s ( %s/  \\ %s/|%s   %sShell:%s %s\n"
-        "%s%s_/%s\\ %s__)%s/%s_%s)%s   %sWM:%s %s\n"
-        "%s%s\\/%s-____%s\\/%s    %sTerminal:%s %s\n\n",
-        COLOR_1, COLOR_2, COLOR_RESET, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, os,
-        COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, kernel,
-        COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, shell,
-        COLOR_1, COLOR_3, COLOR_1, COLOR_2, COLOR_1, COLOR_3, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, wm,
-        COLOR_1, COLOR_3, COLOR_1, COLOR_3, COLOR_RESET, COLOR_3, COLOR_RESET, terminal
-    );
+    printf("%s   (%s<>%s %s|%s     %sOS:%s %s\n", 
+           COLOR_1, COLOR_2, COLOR_RESET, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, os);
+    printf("%s  / %s__  %s\\%s    %sKernel:%s %s\n", 
+           COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, kernel);
+    printf("%s ( %s/  \\ %s/|%s   %sShell:%s %s\n", 
+           COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, shell);
+    printf("%s%s_/%s\\ %s__)%s/%s_%s)%s   %sWM:%s %s\n", 
+           COLOR_1, COLOR_3, COLOR_1, COLOR_2, COLOR_1, COLOR_3, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, wm);
+    printf("%s%s\\/%s-____%s\\/%s    %sTerminal:%s %s\n\n", 
+           COLOR_1, COLOR_3, COLOR_1, COLOR_3, COLOR_RESET, COLOR_3, COLOR_RESET, terminal);
 }
 
 int main(void) {
-    char user[64];
-    char host[64];
-    char shell[64];
-    char wm[64];
-    char terminal[64];
+    char user[MAX_ENV_LEN];
+    char host[MAX_ENV_LEN];
+    char shell[MAX_ENV_LEN];
+    char wm[MAX_ENV_LEN];
+    char terminal[MAX_ENV_LEN];
     char os[128];
     struct utsname info;
     
