@@ -6,8 +6,6 @@
 [![GitHub Stars](https://img.shields.io/github/stars/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/stargazers)
 [![Linux Support](https://img.shields.io/badge/platform-linux-brightgreen)](https://github.com/Gur0v/zeptofetch#-compatibility)
 
----
-
 ## Why zeptofetch?
 
 If you've ever waited for neofetch to crawl through your system info, you'll appreciate zeptofetch. While neofetch takes 378ms to display your system details, zeptofetch does the same job in just 10ms — that's 39 times faster.
