@@ -23,7 +23,7 @@ But speed isn't everything. What makes zeptofetch special is the balance: it's i
 
 ## Benchmarks
 
-Measured using [hyperfine](https://github.com/sharkdp/hyperfine) on identical hardware (Ryzen 5 5600):
+Measured using [hyperfine](https://github.com/sharkdp/hyperfine) on identical hardware, version zeptofetch v1.0-rc5:
 
 | Tool        | Execution Time | Binary Size | Performance vs neofetch |
 |-------------|----------------|-------------|-------------------------|
