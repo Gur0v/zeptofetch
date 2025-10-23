@@ -8,10 +8,14 @@
 #include <ctype.h>
 #include "config.h"
 
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+
 #define MAX_PATH_LEN    256
 #define MAX_LINE_LEN    256
 #define MAX_ENV_LEN     64
-#define PATH_BUF_SIZE   4096
+#define PATH_BUF_SIZE   PATH_MAX
 
 static void safe_copy(char *dest, const char *src, size_t size) {
     if (!dest || size == 0) 
@@ -34,7 +38,7 @@ static pid_t parent_pid(pid_t pid) {
         return -1;
     
     written = snprintf(path, sizeof(path), "/proc/%d/stat", pid);
-    if (written < 0 || written >= (int)sizeof(path)) 
+    if (written < 0 || (size_t)written >= sizeof(path)) 
         return -1;
     
     file = fopen(path, "r");
@@ -59,11 +63,11 @@ static int process_executable(pid_t pid, char *buffer, size_t size) {
         return -1;
     
     written = snprintf(path, sizeof(path), "/proc/%d/exe", pid);
-    if (written < 0 || written >= (int)sizeof(path)) 
+    if (written < 0 || (size_t)written >= sizeof(path)) 
         return -1;
     
     len = readlink(path, buffer, size - 1);
-    if (len != -1) {
+    if (len > 0) {
         buffer[len] = '\0';
         return 0;
     }
@@ -99,6 +103,7 @@ static void get_host(char *host, size_t size) {
     if (gethostname(host, size) != 0) {
         safe_copy(host, "localhost", size);
     }
+    host[size - 1] = '\0';
 }
 
 static void get_shell(char *shell, size_t size) {
@@ -114,16 +119,17 @@ static void get_shell(char *shell, size_t size) {
     }
     
     written = snprintf(path, sizeof(path), "/proc/%d/exe", parent);
-    if (written < 0 || written >= (int)sizeof(path)) {
+    if (written < 0 || (size_t)written >= sizeof(path)) {
         safe_copy(shell, "unknown", size);
         return;
     }
     
     len = readlink(path, exe_path, sizeof(exe_path) - 1);
-    if (len > 0) {
+    if (len > 0 && len < (ssize_t)sizeof(exe_path)) {
         exe_path[len] = '\0';
         char *base = strrchr(exe_path, '/');
-        safe_copy(shell, base ? base + 1 : exe_path, size);
+        const char *result = base ? base + 1 : exe_path;
+        safe_copy(shell, result, size);
     } else {
         safe_copy(shell, "unknown", size);
     }
@@ -181,6 +187,14 @@ static void get_wm(char *wm, size_t size) {
     safe_copy(wm, "unknown", size);
 }
 
+static int is_shell_process(const char *name) {
+    return (strcmp(name, "bash") == 0 || 
+            strcmp(name, "zsh") == 0 || 
+            strcmp(name, "sh") == 0 ||
+            strcmp(name, "fish") == 0 ||
+            strcmp(name, "dash") == 0);
+}
+
 static void get_terminal(char *term, size_t size) {
     pid_t parent = parent_pid(getpid());
     
@@ -194,7 +208,7 @@ static void get_terminal(char *term, size_t size) {
         char *base = strrchr(name, '/');
         base = base ? base + 1 : name;
         
-        if (strstr(base, "bash") || strstr(base, "zsh") || strstr(base, "sh")) {
+        if (is_shell_process(base)) {
             parent = parent_pid(parent);
             continue;
         }
@@ -257,7 +271,7 @@ static void get_terminal(char *term, size_t size) {
         };
         
         for (size_t i = 0; i < sizeof(terminals) / sizeof(*terminals); i++) {
-            if (strstr(base, terminals[i].match)) {
+            if (strcmp(base, terminals[i].match) == 0) {
                 safe_copy(term, terminals[i].name, size);
                 return;
             }
@@ -282,6 +296,8 @@ static void get_os(char *os, size_t size) {
     }
     
     char line[MAX_LINE_LEN];
+    int found = 0;
+    
     while (fgets(line, sizeof(line), file)) {
         if (strncmp(line, "PRETTY_NAME=", 12) == 0) {
             char *start = strchr(line, '"');
@@ -290,15 +306,16 @@ static void get_os(char *os, size_t size) {
             if (start && end && start < end) {
                 *end = '\0';
                 safe_copy(os, start + 1, size);
-            } else {
-                safe_copy(os, "Linux", size);
+                found = 1;
             }
-            fclose(file);
-            return;
+            break;
         }
     }
     
-    safe_copy(os, "Linux", size);
+    if (!found) {
+        safe_copy(os, "Linux", size);
+    }
+    
     fclose(file);
 }
 
