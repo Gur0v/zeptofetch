@@ -1,41 +1,116 @@
 <div align="center">
 
-# zeptofetch
+# ⚡ zeptofetch
 
-*An ultra-minimal system information tool for Linux, written in C.*
+*Blazingly fast, ultra-minimal system information tool for Linux*
 
 [![License](https://img.shields.io/github/license/Gur0v/zeptofetch)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/stargazers)
-[![Platform](https://img.shields.io/badge/platform-linux-brightgreen)](#system-requirements)
+[![Platform](https://img.shields.io/badge/platform-linux-blue)](#compatibility)
+[![Version](https://img.shields.io/github/v/release/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/releases)
+[![Issues](https://img.shields.io/github/issues/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/issues)
+[![Pull Requests](https://img.shields.io/github/issues-pr/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/pulls)
 
-</div>  
+![Preview](https://roblo-x.com/zfcp6ftq.png)
 
-## Overview
+[Features](#features) • [Benchmarks](#benchmarks) • [Installation](#installation) • [Configuration](#configuration)
 
-`zeptofetch` provides fast, minimal system information without the overhead of larger tools.
-Compared to neofetch’s \~378 ms runtime, zeptofetch completes in \~10 ms with a binary size of only 16 KB.
+</div>
 
-### Features
+---
 
-* **Fast** — \~10 ms runtime
-* **Compact** — 16 KB binary, no dependencies
-* **Pure C** — no scripts, no external libraries
-* **Portable** — works across major Linux distributions
-* **Configurable** — simple color definitions in `config.h`
+## 🎯 Why zeptofetch?
 
-## Benchmarks
+`zeptofetch` delivers system information in **under 2ms*** with a **28KB binary***. No scripts, no bloat, just pure C doing exactly what you need.
 
-Tested with [hyperfine](https://github.com/sharkdp/hyperfine) on identical hardware (`zeptofetch v1.0-rc5`).
+While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, zeptofetch gives you the same information 200x faster* with a fraction of the size.
 
-| Tool       | Time       | Size      | Comparison               |
-| ---------- | ---------- | --------- | ------------------------ |
-| zeptofetch | **9.8 ms** | **16 KB** | 39× faster than neofetch |
-| fastfetch  | 4.0 ms     | \~200 KB  | Faster, but 12× larger   |
-| neofetch   | 378 ms     | \~50 KB   | Baseline                 |
+*_Performance varies by hardware and system configuration. See [benchmarks](#benchmarks) for details._
 
-## Installation
+## ✨ Features
 
-### From Source
+<table>
+<tr>
+<td width="50%">
+
+### Performance
+- ⚡ **~1.8ms runtime*** - 200x faster than neofetch*
+- 📦 **28KB binary*** - minimal disk footprint
+- 🔒 **Safe caching** - smart process chain optimization
+- 💾 **Zero dependencies** - static linking available
+
+</td>
+<td width="50%">
+
+### Design
+- 🎨 **Customizable colors** - simple config.h
+- 🐧 **Pure C implementation** - no shell scripts
+- 🔧 **Direct /proc parsing** - no spawning ps/popen
+- ✅ **Production ready** - extensive testing
+
+</td>
+</tr>
+</table>
+
+*_Results depend on your hardware. See test system specs below._
+
+## 📊 Benchmarks
+
+Tested with [hyperfine](https://github.com/sharkdp/hyperfine) (1000 runs, 5 warmup) on the following system:
+
+<details>
+<summary><b>Test System Specifications</b></summary>
+
+| Component | Specification |
+|-----------|--------------|
+| **CPU** | AMD Ryzen 5 5600 (6-core, 12-thread) |
+| **GPU** | AMD Radeon RX 7600 |
+| **RAM** | 32 GB DDR4 |
+| **Storage** | 931.51 GB SSD |
+| **Kernel** | 6.17.5-xanmod1-1-edge-x64v3 |
+| **OS** | Arch Linux |
+| **Desktop** | KDE Plasma 6.5.0 (Wayland) |
+
+</details>
+
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Runtime</th>
+<th>Binary Size</th>
+<th>Speed vs neofetch</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>zeptofetch</strong></td>
+<td><strong>1.79ms ± 0.12ms</strong></td>
+<td><strong>28 KB</strong></td>
+<td><code>244x faster</code></td>
+</tr>
+<tr>
+<td>fastfetch</td>
+<td>4.56ms ± 0.19ms</td>
+<td>~200 KB</td>
+<td><code>96x faster</code></td>
+</tr>
+<tr>
+<td>neofetch</td>
+<td>437.27ms ± 5.28ms</td>
+<td>~50 KB</td>
+<td><em>baseline</em></td>
+</tr>
+</tbody>
+</table>
+
+> **Note**: Performance is highly dependent on hardware, system load, and configuration. Manual compilation yields significantly better performance than prebuilt releases. Results may vary on your system.
+
+## 🚀 Installation
+
+### Recommended: Manual Compilation
+
+For best performance and smallest binary size, compile manually with your system's native optimizations:
 
 ```bash
 git clone https://github.com/Gur0v/zeptofetch
@@ -44,47 +119,122 @@ make
 sudo make install
 ```
 
-### Prebuilt Binaries
+This builds with `-march=native` for maximum performance on your specific CPU.
 
-Available on the [Releases](https://github.com/Gur0v/zeptofetch/releases) page.
+### Alternative: Prebuilt Releases
 
-## Configuration
+Prebuilt binaries are available on the [Releases](https://github.com/Gur0v/zeptofetch/releases) page. These are primarily intended for packaging and distribution, compiled with `-march=x86-64-v3` for broader compatibility.
 
-Colors are defined in `config.h`:
+**Manual compilation is strongly recommended** for optimal performance.
+
+## ⚙️ Configuration
+
+Customize colors by editing `config.h`:
 
 ```c
-#define COLOR_1 "\033[1;34m"     // headers
-#define COLOR_2 "\033[1;37m"     // values
-#define COLOR_3 "\033[38;5;208m" // accents
+#define COLOR_1 "\033[1;34m"     // Primary (headers, ASCII art)
+#define COLOR_2 "\033[1;37m"     // Secondary (ASCII details)
+#define COLOR_3 "\033[38;5;208m" // Accent (labels)
+#define COLOR_RESET "\033[0m"    // Reset to default
 ```
 
-Rebuild after making changes:
+Rebuild after changes:
 
 ```bash
 make clean && make
+sudo make install
 ```
 
-## Build Options
+## 🔍 Technical Details
 
-| Mode    | Size  | Flags                         | Use case     |
-| ------- | ----- | ----------------------------- | ------------ |
-| Default | 16 KB | `-march=native`, dynamic link | General use  |
-| Release | 68 KB | `-march=x86-64-v3`, static    | Distribution |
+### Architecture Highlights
 
-## System Requirements
+- **Smart caching**: Process chain information cached during runtime
+- **Direct /proc access**: No subprocess spawning or shell execution
+- **Safe string handling**: All operations bounds-checked
+- **Optimized lookups**: First-character filtering before string comparisons
+- **Memory efficient**: Fixed-size stack allocations, predictable memory usage
 
-* Linux (x86\_64)
-* Verified on Alpine, Void, Gentoo, Arch, Ubuntu
-* Android not supported
+### Detection Methods
 
-## Contributing
+- **OS**: Parses `/etc/os-release` in single pass
+- **Shell**: Walks parent process chain via `/proc/[pid]/exe`
+- **Terminal**: Scans process ancestry for known terminal emulators
+- **WM**: Direct `/proc` scanning with result caching
+- **Kernel**: Uses `uname()` syscall
 
-Contributions are welcome:
+## 🐧 Compatibility
 
-* Open [issues](https://github.com/Gur0v/zeptofetch/issues)
-* Suggest improvements or features
-* Help improve documentation
+### Verified Distributions
 
-## License
+<table>
+<tr>
+<td>
 
-[GPL-3.0](LICENSE)
+- ✅ Alpine Linux
+- ✅ Arch Linux
+- ✅ Artix Linux
+- ✅ Debian
+- ✅ Fedora
+- ✅ Gentoo
+
+</td>
+<td>
+
+- ✅ Linux Mint
+- ✅ Manjaro
+- ✅ NixOS
+- ✅ openSUSE
+- ✅ Pop!_OS
+- ✅ Ubuntu
+
+</td>
+<td>
+
+- ✅ Void Linux
+- ✅ EndeavourOS
+- ✅ Garuda Linux
+- ✅ CachyOS
+- ✅ Solus
+- ✅ KDE neon
+
+</td>
+</tr>
+</table>
+
+### Requirements
+
+- **Platform**: Linux (x86_64)
+- **Kernel**: 2.6.32+ (any modern kernel)
+- **libc**: glibc, musl, or compatible
+- **Build**: GCC or Clang
+
+**Partial support**: WSL (supported but may provide inaccurate information as zeptofetch is not specifically designed for it)
+
+**Not supported**: Android, BSD, macOS
+
+## 🤝 Contributing
+
+Contributions are welcome! Here's how you can help:
+
+- 🐛 [Report bugs](https://github.com/Gur0v/zeptofetch/issues)
+- 💡 [Suggest features](https://github.com/Gur0v/zeptofetch/issues)
+- 📝 Improve documentation
+- 🔧 Submit pull requests
+- 🧪 Test on new distributions
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting PRs.
+
+## 📜 License
+
+Licensed under [GPL-3.0](LICENSE)
+
+---
+
+<div align="center">
+
+**Made with ⚡ by [Gur0v](https://github.com/Gur0v)**
+
+[⬆ Back to top](#-zeptofetch)
+
+</div>
