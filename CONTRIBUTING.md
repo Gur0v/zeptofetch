@@ -255,7 +255,6 @@ By contributing, you agree that your contributions will be licensed under the GP
 All contributors are valued! Significant contributions will be:
 
 - Credited in release notes
-- Listed in the README contributors section
 - Mentioned in the project history
 
 Thank you for helping make zeptofetch better!
