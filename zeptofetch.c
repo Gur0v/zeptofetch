@@ -15,12 +15,12 @@
 #define PATH_MAX 4096
 #endif
 
-#define MAX_NAME 128
-#define MAX_SMALL 64
-#define MAX_LINE 64
-#define PID_MAX 4194304
-#define CACHE_SIZE 512
-#define MAX_CHAIN_DEPTH 1000
+#define MAX_NAME          128
+#define MAX_SMALL         64
+#define MAX_LINE          64
+#define PID_MAX           4194304
+#define CACHE_SIZE        512
+#define MAX_CHAIN_DEPTH   1000
 
 typedef struct {
     pid_t pid;
@@ -35,9 +35,13 @@ static size_t cache_cnt = 0;
 static char wm_cached[MAX_SMALL] = {0};
 static int wm_found = 0;
 
-static void str_copy(char *dst, const char *src, size_t sz) {
+static void str_copy(char *dst, const char *src, size_t sz)
+{
     if (!dst || sz == 0) return;
-    if (!src) { dst[0] = '\0'; return; }
+    if (!src) {
+        dst[0] = '\0';
+        return;
+    }
     size_t len = strlen(src);
     if (len < sz) {
         memcpy(dst, src, len + 1);
@@ -47,18 +51,21 @@ static void str_copy(char *dst, const char *src, size_t sz) {
     }
 }
 
-static int valid_pid(pid_t pid) {
+static int valid_pid(pid_t pid)
+{
     return pid > 0 && pid <= PID_MAX;
 }
 
-static proc_t *cache_get(pid_t pid) {
+static proc_t *cache_get(pid_t pid)
+{
     for (size_t i = 0; i < cache_cnt; ++i) {
         if (cache[i].pid == pid) return &cache[i];
     }
     return NULL;
 }
 
-static proc_t *cache_add(pid_t pid) {
+static proc_t *cache_add(pid_t pid)
+{
     if (cache_cnt >= CACHE_SIZE) return NULL;
     cache[cache_cnt].pid = pid;
     cache[cache_cnt].ppid = -1;
@@ -68,7 +75,8 @@ static proc_t *cache_add(pid_t pid) {
     return &cache[cache_cnt++];
 }
 
-static int read_ppid(pid_t pid, pid_t *out) {
+static int read_ppid(pid_t pid, pid_t *out)
+{
     char path[PATH_MAX];
     int r = snprintf(path, sizeof(path), "/proc/%d/stat", pid);
     if (r < 0 || (size_t)r >= sizeof(path)) return -1;
@@ -76,10 +84,11 @@ static int read_ppid(pid_t pid, pid_t *out) {
     if (!f) return -1;
     int ok = fscanf(f, "%*d %*s %*c %d", out);
     fclose(f);
-    return ok == 1 ? 0 : -1;
+    return (ok == 1) ? 0 : -1;
 }
 
-static int read_exe(pid_t pid, char *buf, size_t sz) {
+static int read_exe(pid_t pid, char *buf, size_t sz)
+{
     char path[PATH_MAX];
     int r = snprintf(path, sizeof(path), "/proc/%d/exe", pid);
     if (r < 0 || (size_t)r >= sizeof(path)) return -1;
@@ -89,7 +98,8 @@ static int read_exe(pid_t pid, char *buf, size_t sz) {
     return 0;
 }
 
-static int get_proc(pid_t pid, proc_t *p) {
+static int get_proc(pid_t pid, proc_t *p)
+{
     if (!valid_pid(pid) || !p) return -1;
     proc_t *cached = cache_get(pid);
     if (cached) {
@@ -99,15 +109,23 @@ static int get_proc(pid_t pid, proc_t *p) {
     proc_t *e = cache_add(pid);
     if (!e) return -1;
     e->pid = pid;
-    if (read_ppid(pid, &e->ppid) == 0) e->has_ppid = 1;
-    else e->ppid = -1;
-    if (read_exe(pid, e->exe, sizeof(e->exe)) == 0) e->has_exe = 1;
-    else { e->exe[0] = '\0'; e->has_exe = 0; }
+    if (read_ppid(pid, &e->ppid) == 0) {
+        e->has_ppid = 1;
+    } else {
+        e->ppid = -1;
+    }
+    if (read_exe(pid, e->exe, sizeof(e->exe)) == 0) {
+        e->has_exe = 1;
+    } else {
+        e->exe[0] = '\0';
+        e->has_exe = 0;
+    }
     *p = *e;
     return 0;
 }
 
-static size_t build_chain(pid_t start, proc_t *out, size_t max) {
+static size_t build_chain(pid_t start, proc_t *out, size_t max)
+{
     size_t idx = 0;
     pid_t cur = start;
     while (valid_pid(cur) && idx < max && idx < MAX_CHAIN_DEPTH) {
@@ -123,42 +141,49 @@ static size_t build_chain(pid_t start, proc_t *out, size_t max) {
     return idx;
 }
 
-static int str_eq(const char *a, const char *b) {
+static int str_eq(const char *a, const char *b)
+{
     return strcmp(a, b) == 0;
 }
 
-static int str_prefix(const char *s, const char *pre, size_t pre_len) {
+static int str_prefix(const char *s, const char *pre, size_t pre_len)
+{
     return strncmp(s, pre, pre_len) == 0;
 }
 
-static int is_shell(const char *n) {
+static int is_shell(const char *n)
+{
     if (!n) return 0;
-    char c = n[0];
-    if (c == 'b') return str_eq(n, "bash");
-    if (c == 'z') return str_eq(n, "zsh");
-    if (c == 's') return str_eq(n, "sh");
-    if (c == 'f') return str_eq(n, "fish");
-    if (c == 'd') return str_eq(n, "dash");
-    if (c == 'k') return str_eq(n, "ksh");
-    if (c == 't') return str_eq(n, "tcsh");
-    if (c == 'c') return str_eq(n, "csh");
-    if (c == 'e') return str_eq(n, "elvish");
-    if (c == 'y') return str_eq(n, "yash");
-    return 0;
+    switch (n[0]) {
+        case 'b': return str_eq(n, "bash");
+        case 'z': return str_eq(n, "zsh");
+        case 's': return str_eq(n, "sh");
+        case 'f': return str_eq(n, "fish");
+        case 'd': return str_eq(n, "dash");
+        case 'k': return str_eq(n, "ksh");
+        case 't': return str_eq(n, "tcsh");
+        case 'c': return str_eq(n, "csh");
+        case 'e': return str_eq(n, "elvish");
+        case 'y': return str_eq(n, "yash");
+        default:  return 0;
+    }
 }
 
-static void basename_of(const char *path, char *out, size_t sz) {
+static void basename_of(const char *path, char *out, size_t sz)
+{
     if (!path || !out || sz == 0) return;
     const char *b = strrchr(path, '/');
     str_copy(out, b ? b + 1 : path, sz);
 }
 
-static void get_user(char *buf, size_t sz) {
+static void get_user(char *buf, size_t sz)
+{
     struct passwd *pw = getpwuid(getuid());
-    str_copy(buf, pw && pw->pw_name ? pw->pw_name : "user", sz);
+    str_copy(buf, (pw && pw->pw_name) ? pw->pw_name : "user", sz);
 }
 
-static void get_host(char *buf, size_t sz) {
+static void get_host(char *buf, size_t sz)
+{
     if (gethostname(buf, sz) != 0) {
         str_copy(buf, "localhost", sz);
         return;
@@ -166,7 +191,8 @@ static void get_host(char *buf, size_t sz) {
     buf[sz - 1] = '\0';
 }
 
-static void get_shell(proc_t *chain, size_t cnt, char *buf, size_t sz) {
+static void get_shell(proc_t *chain, size_t cnt, char *buf, size_t sz)
+{
     char base[MAX_NAME];
     for (size_t i = 0; i < cnt; ++i) {
         if (!chain[i].has_exe) continue;
@@ -179,8 +205,12 @@ static void get_shell(proc_t *chain, size_t cnt, char *buf, size_t sz) {
     str_copy(buf, "unknown", sz);
 }
 
-static void get_term(proc_t *chain, size_t cnt, char *buf, size_t sz) {
-    static const struct { const char *name; size_t len; } terms[] = {
+static void get_term(proc_t *chain, size_t cnt, char *buf, size_t sz)
+{
+    static const struct {
+        const char *name;
+        size_t len;
+    } terms[] = {
         {"gnome-terminal", 14}, {"urxvt", 5}, {"konsole", 7}, {"alacritty", 9},
         {"xterm", 5}, {"kitty", 5}, {"foot", 4}, {"wezterm", 7}, {"st", 2},
         {"termite", 7}, {"terminator", 10}, {"tilix", 5}, {"terminology", 11},
@@ -192,6 +222,7 @@ static void get_term(proc_t *chain, size_t cnt, char *buf, size_t sz) {
         {"aterm", 5}, {"evilvte", 7}, {"xvt", 3}, {"nxterm", 6}, {"kterm", 5},
         {"mrxvt", 5}, {"pterm", 5}, {"wterm", 5}, {"yaft", 4}, {"fbterm", 6}
     };
+
     char base[MAX_NAME];
     for (size_t i = 1; i < cnt; ++i) {
         if (!chain[i].has_exe) continue;
@@ -200,7 +231,8 @@ static void get_term(proc_t *chain, size_t cnt, char *buf, size_t sz) {
         char fc = base[0];
         for (size_t j = 0; j < sizeof(terms) / sizeof(terms[0]); ++j) {
             if (fc != terms[j].name[0]) continue;
-            if (str_eq(base, terms[j].name) || str_prefix(base, terms[j].name, terms[j].len)) {
+            if (str_eq(base, terms[j].name) ||
+                str_prefix(base, terms[j].name, terms[j].len)) {
                 str_copy(buf, terms[j].name, sz);
                 return;
             }
@@ -213,7 +245,8 @@ static void get_term(proc_t *chain, size_t cnt, char *buf, size_t sz) {
     str_copy(buf, "unknown", sz);
 }
 
-static int read_comm(const char *pid_str, char *comm, size_t sz) {
+static int read_comm(const char *pid_str, char *comm, size_t sz)
+{
     char path[PATH_MAX];
     int r = snprintf(path, sizeof(path), "/proc/%s/comm", pid_str);
     if (r < 0 || (size_t)r >= sizeof(path)) return -1;
@@ -228,13 +261,17 @@ static int read_comm(const char *pid_str, char *comm, size_t sz) {
     return 0;
 }
 
-static void get_wm(char *buf, size_t sz) {
+static void get_wm(char *buf, size_t sz)
+{
     if (wm_found) {
         str_copy(buf, wm_cached, sz);
         return;
     }
-    
-    static const struct { const char *name; size_t len; } wms[] = {
+
+    static const struct {
+        const char *name;
+        size_t len;
+    } wms[] = {
         {"acme", 4}, {"afterstep", 9}, {"awesome", 7}, {"berry", 5},
         {"bspwm", 5}, {"cage", 4}, {"catwm", 5}, {"compiz", 6},
         {"cinnamon", 8}, {"ctwm", 4}, {"dminiwm", 7}, {"dwm", 3},
@@ -250,24 +287,25 @@ static void get_wm(char *buf, size_t sz) {
         {"wayfire", 7}, {"wmii", 4}, {"wmx", 3}, {"xfwm4", 5}, {"xmonad", 6},
         {"gnome-shell", 11}, {"mate-session", 12}
     };
-    
+
     DIR *proc = opendir("/proc");
     if (!proc) {
         str_copy(buf, "unknown", sz);
         return;
     }
-    
+
     struct dirent *ent;
     char comm[MAX_SMALL];
     while ((ent = readdir(proc))) {
         if (ent->d_name[0] < '0' || ent->d_name[0] > '9') continue;
         if (read_comm(ent->d_name, comm, sizeof(comm)) != 0) continue;
         if (comm[0] == '\0') continue;
-        
+
         char fc = comm[0];
         for (size_t i = 0; i < sizeof(wms) / sizeof(wms[0]); ++i) {
             if (fc != wms[i].name[0]) continue;
-            if (str_eq(comm, wms[i].name) || str_prefix(comm, wms[i].name, wms[i].len)) {
+            if (str_eq(comm, wms[i].name) ||
+                str_prefix(comm, wms[i].name, wms[i].len)) {
                 if (str_eq(comm, "gnome-shell")) {
                     str_copy(buf, "mutter", sz);
                 } else if (str_eq(comm, "cinnamon")) {
@@ -292,16 +330,20 @@ static void get_wm(char *buf, size_t sz) {
     wm_found = 1;
 }
 
-static void get_os(char *buf, size_t sz) {
+static void get_os(char *buf, size_t sz)
+{
     FILE *f = fopen("/etc/os-release", "r");
-    if (!f) { str_copy(buf, "Linux", sz); return; }
-    
+    if (!f) {
+        str_copy(buf, "Linux", sz);
+        return;
+    }
+
     char line[MAX_LINE];
     char pretty_name[MAX_LINE] = {0};
     char name_buf[MAX_LINE] = {0};
     int found_pretty = 0;
     int found_name = 0;
-    
+
     while (fgets(line, sizeof(line), f)) {
         if (strncmp(line, "PRETTY_NAME=", 12) == 0) {
             char *start = strchr(line, '"');
@@ -327,7 +369,7 @@ static void get_os(char *buf, size_t sz) {
             }
         }
     }
-    
+
     if (found_pretty) {
         str_copy(buf, pretty_name, sz);
     } else if (found_name) {
@@ -335,31 +377,42 @@ static void get_os(char *buf, size_t sz) {
     } else {
         str_copy(buf, "Linux", sz);
     }
-    
+
     fclose(f);
 }
 
-static void print_sep(size_t len) {
+static void print_sep(size_t len)
+{
     for (size_t i = 0; i < len; ++i) putchar('-');
     putchar('\n');
 }
 
 static void display(const char *user, const char *host, const char *os,
-                    const char *kern, const char *shell, const char *wm, 
-                    const char *term) {
+                    const char *kern, const char *shell, const char *wm,
+                    const char *term)
+{
     size_t len = strlen(user) + strlen(host) + 1;
-    printf("%s    ___ %s     %s%s@%s%s\n", COLOR_1, COLOR_RESET, COLOR_1, user, host, COLOR_RESET);
+    printf("%s    ___ %s     %s%s@%s%s\n",
+           COLOR_1, COLOR_RESET, COLOR_1, user, host, COLOR_RESET);
     printf("%s   (%s.· %s|%s     ", COLOR_1, COLOR_2, COLOR_1, COLOR_RESET);
     print_sep(len);
-    printf("%s   (%s<>%s %s|%s     %sOS:%s %s\n", COLOR_1, COLOR_2, COLOR_RESET, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, os);
-    printf("%s  / %s__  %s\\%s    %sKernel:%s %s\n", COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, kern);
-    printf("%s ( %s/  \\ %s/|%s   %sShell:%s %s\n", COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, shell);
-    printf("%s%s_/%s\\ %s__)%s/%s_%s)%s   %sWM:%s %s\n", COLOR_1, COLOR_3, COLOR_1, COLOR_2, COLOR_1, COLOR_3, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, wm);
-    printf("%s%s\\/%s-____%s\\/%s    %sTerminal:%s %s\n\n", COLOR_1, COLOR_3, COLOR_1, COLOR_3, COLOR_RESET, COLOR_3, COLOR_RESET, term);
+    printf("%s   (%s<>%s %s|%s     %sOS:%s %s\n",
+           COLOR_1, COLOR_2, COLOR_RESET, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, os);
+    printf("%s  / %s__  %s\\%s    %sKernel:%s %s\n",
+           COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, kern);
+    printf("%s ( %s/  \\ %s/|%s   %sShell:%s %s\n",
+           COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, shell);
+    printf("%s%s_/%s\\ %s__)%s/%s_%s)%s   %sWM:%s %s\n",
+           COLOR_1, COLOR_3, COLOR_1, COLOR_2, COLOR_1, COLOR_3, COLOR_1, COLOR_RESET,
+           COLOR_3, COLOR_RESET, wm);
+    printf("%s%s\\/%s-____%s\\/%s    %sTerminal:%s %s\n\n",
+           COLOR_1, COLOR_3, COLOR_1, COLOR_3, COLOR_RESET, COLOR_3, COLOR_RESET, term);
 }
 
-int main(void) {
+int main(void)
+{
     setlocale(LC_ALL, "");
+
     char user[MAX_SMALL];
     char host[MAX_SMALL];
     char shell[MAX_SMALL];
@@ -367,20 +420,21 @@ int main(void) {
     char term[MAX_SMALL];
     char os[MAX_NAME];
     struct utsname info;
+
     if (uname(&info) != 0) return 1;
-    
+
     get_user(user, sizeof(user));
     get_host(host, sizeof(host));
-    
+
     proc_t chain[CACHE_SIZE];
     cache_cnt = 0;
     size_t cnt = build_chain(getpid(), chain, sizeof(chain) / sizeof(chain[0]));
-    
+
     get_shell(chain, cnt, shell, sizeof(shell));
     get_term(chain, cnt, term, sizeof(term));
     get_wm(wm, sizeof(wm));
     get_os(os, sizeof(os));
-    
+
     display(user, host, os, info.release, shell, wm, term);
     return 0;
 }
