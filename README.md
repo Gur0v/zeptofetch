@@ -121,6 +121,22 @@ sudo make install
 
 This builds with `-march=native` for maximum performance on your specific CPU.
 
+### Arch Linux (AUR)
+
+For Arch Linux users, zeptofetch is available in the AUR:
+
+```bash
+# Using paru
+paru -S zeptofetch        # Build from source
+paru -S zeptofetch-bin    # Prebuilt binary
+paru -S zeptofetch-git    # Latest from git
+
+# Using yay
+yay -S zeptofetch         # Build from source
+yay -S zeptofetch-bin     # Prebuilt binary
+yay -S zeptofetch-git     # Latest from git
+```
+
 ### Alternative: Prebuilt Releases
 
 Prebuilt binaries are available on the [Releases](https://github.com/Gur0v/zeptofetch/releases) page. These are primarily intended for packaging and distribution, compiled with `-march=x86-64-v3` for broader compatibility.
