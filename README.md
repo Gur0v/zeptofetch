@@ -23,7 +23,7 @@
 
 `zeptofetch` delivers system information in **under 2ms*** with a **28KB binary***. No scripts, no bloat, just pure C doing exactly what you need.
 
-While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, zeptofetch gives you the same information 200x faster* with a fraction of the size.
+While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, zeptofetch gives you information 200x faster* with a fraction of the size.
 
 *_Performance varies by hardware and system configuration. See [benchmarks](#benchmarks) for details._
 
