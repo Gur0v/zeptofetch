@@ -285,7 +285,7 @@ static void get_wm(char *buf, size_t sz)
         {"spectrwm", 8}, {"stumpwm", 7}, {"sawfish", 7}, {"snapwm", 6},
         {"tinywm", 6}, {"trayer", 6}, {"twm", 3}, {"vwm", 3}, {"waimea", 6},
         {"wayfire", 7}, {"wmii", 4}, {"wmx", 3}, {"xfwm4", 5}, {"xmonad", 6},
-        {"gnome-shell", 11}, {"mate-session", 12}
+        {"gnome-shell", 11}, {"mate-session", 12}, {"niri", 4}
     };
 
     DIR *proc = opendir("/proc");
