@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE \
-         -O3 -flto=auto -pipe -Wall -Wextra -Wpedantic
+         -march=native -O3 -flto=auto -pipe -Wall -Wextra -Wpedantic
 LDFLAGS = -Wl,--gc-sections -Wl,-z,relro -Wl,-z,now -Wl,--hash-style=gnu
 PREFIX = /usr/local
 DESTDIR =
