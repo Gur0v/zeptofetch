@@ -1,4 +1,7 @@
-CC = gcc
+CC := $(shell command -v gcc 2>/dev/null || command -v clang 2>/dev/null)
+ifeq ($(CC),)
+$(error No suitable compiler found. Please install GCC or Clang)
+endif
 CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE \
          -march=native -O3 -flto=auto -pipe -Wall -Wextra -Wpedantic
 LDFLAGS = -Wl,--gc-sections -Wl,-z,relro -Wl,-z,now -Wl,--hash-style=gnu
@@ -7,6 +10,8 @@ DESTDIR =
 TARGET = zeptofetch
 SRC = zeptofetch.c
 DEPS = config.h
+
+export TZ = UTC
 
 .PHONY: all clean install uninstall release debug
 
