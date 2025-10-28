@@ -21,6 +21,7 @@
 #define PID_MAX           4194304
 #define CACHE_SIZE        512
 #define MAX_CHAIN_DEPTH   1000
+#define VERSION           "v1.1-rc1"
 
 typedef struct {
     pid_t pid;
@@ -387,6 +388,29 @@ static void print_sep(size_t len)
     putchar('\n');
 }
 
+static void print_version(void)
+{
+    printf("zeptofetch %s\n", VERSION);
+    printf("Copyright (C) 2025 Gurov\n");
+    printf("Licensed under GPL-3.0\n");
+    
+    printf("\nBUILD: %s %s UTC | ", __DATE__, __TIME__);
+    
+#ifdef __VERSION__
+    printf("%s | ", __VERSION__);
+#elif defined(__GNUC__)
+    printf("GCC %d.%d.%d | ", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
+#elif defined(__clang__)
+    printf("Clang %d.%d.%d | ", __clang_major__, __clang_minor__, __clang_patchlevel__);
+#else
+    printf("Unknown | ");
+#endif
+
+    printf("x86_64\n");
+    printf("CONFIG: CACHE=%d CHAIN=%d PATH=%d PID=%d\n", 
+           CACHE_SIZE, MAX_CHAIN_DEPTH, PATH_MAX, PID_MAX);
+}
+
 static void display(const char *user, const char *host, const char *os,
                     const char *kern, const char *shell, const char *wm,
                     const char *term)
@@ -409,9 +433,16 @@ static void display(const char *user, const char *host, const char *os,
            COLOR_1, COLOR_3, COLOR_1, COLOR_3, COLOR_RESET, COLOR_3, COLOR_RESET, term);
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
     setlocale(LC_ALL, "");
+
+    if (argc > 1) {
+        if (str_eq(argv[1], "--version") || str_eq(argv[1], "-v")) {
+            print_version();
+            return 0;
+        }
+    }
 
     char user[MAX_SMALL];
     char host[MAX_SMALL];
