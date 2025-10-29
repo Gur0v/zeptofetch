@@ -11,7 +11,7 @@
 [![Issues](https://img.shields.io/github/issues/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/issues)
 [![Pull Requests](https://img.shields.io/github/issues-pr/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/pulls)
 
-![Preview](https://roblo-x.com/zfcp6ftq.png)
+![zeptofetch v1.1](https://roblo-x.com/6b9offkd.webp)
 
 [Features](#features) • [Benchmarks](#benchmarks) • [Installation](#installation) • [Usage](#usage) • [Configuration](#configuration)
 
