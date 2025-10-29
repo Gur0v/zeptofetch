@@ -13,7 +13,7 @@
 
 ![Preview](https://roblo-x.com/zfcp6ftq.png)
 
-[Features](#features) • [Benchmarks](#benchmarks) • [Installation](#installation) • [Configuration](#configuration)
+[Features](#features) • [Benchmarks](#benchmarks) • [Installation](#installation) • [Usage](#usage) • [Configuration](#configuration)
 
 </div>
 
@@ -142,6 +142,23 @@ yay -S zeptofetch-git     # Latest from git
 Prebuilt binaries are available on the [Releases](https://github.com/Gur0v/zeptofetch/releases) page. These are primarily intended for packaging and distribution, compiled with `-march=x86-64-v3` for broader compatibility.
 
 **Manual compilation is strongly recommended** for optimal performance.
+
+## 📖 Usage
+
+```bash
+# Display system information
+zeptofetch
+
+# Show version and build information
+zeptofetch --version
+zeptofetch -v
+```
+
+The `--version` flag displays:
+- Version number and license information
+- Build date, time, and compiler used
+- Target architecture
+- Configuration constants (cache size, limits)
 
 ## ⚙️ Configuration
 
