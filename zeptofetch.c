@@ -21,7 +21,7 @@
 #define PID_MAX           4194304
 #define CACHE_SIZE        512
 #define MAX_CHAIN_DEPTH   1000
-#define VERSION           "v1.1-rc2"
+#define VERSION           "v1.1"
 
 typedef struct {
     pid_t pid;
@@ -440,7 +440,7 @@ static void display(const char *user, const char *host, const char *os,
     printf("%s   (%s.· %s|%s     ", COLOR_1, COLOR_2, COLOR_1, COLOR_RESET);
     print_sep(len);
     printf("%s   (%s<>%s %s|%s     %sOS:%s %s\n",
-           COLOR_1, COLOR_2, COLOR_RESET, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, os);
+           COLOR_1, COLOR_3, COLOR_RESET, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, os);
     printf("%s  / %s__  %s\\%s    %sKernel:%s %s\n",
            COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, kern);
     printf("%s ( %s/  \\ %s/|%s   %sShell:%s %s\n",
