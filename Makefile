@@ -3,7 +3,7 @@ ifeq ($(CC),)
 $(error No suitable compiler found. Please install GCC or Clang)
 endif
 CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE \
-         -march=native -O3 -flto=auto -pipe -Wall -Wextra -Wpedantic
+         -march=native -O3 -flto -pipe -Wall -Wextra -Wpedantic
 LDFLAGS = -Wl,--gc-sections -Wl,-z,relro -Wl,-z,now -Wl,--hash-style=gnu
 PREFIX = /usr/local
 DESTDIR =
@@ -22,7 +22,7 @@ $(TARGET): $(SRC) $(DEPS)
 	strip --strip-all --remove-section=.note --remove-section=.comment $@
 
 release: CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE \
-                  -march=x86-64-v3 -mtune=generic -O3 -flto=auto -pipe \
+                  -march=x86-64-v3 -mtune=generic -O3 -flto -pipe \
                   -Wall -Wextra -ffunction-sections -fdata-sections
 release: LDFLAGS = -static -Wl,--gc-sections -Wl,--hash-style=gnu
 release: clean
