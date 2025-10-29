@@ -21,7 +21,7 @@
 #define PID_MAX           4194304
 #define CACHE_SIZE        512
 #define MAX_CHAIN_DEPTH   1000
-#define VERSION           "v1.1-rc1"
+#define VERSION           "v1.1-rc2"
 
 typedef struct {
     pid_t pid;
@@ -393,20 +393,39 @@ static void print_version(void)
     printf("zeptofetch %s\n", VERSION);
     printf("Copyright (C) 2025 Gurov\n");
     printf("Licensed under GPL-3.0\n");
+    printf("\n");
+    printf("BUILD: %s %s UTC | ", __DATE__, __TIME__);
     
-    printf("\nBUILD: %s %s UTC | ", __DATE__, __TIME__);
-    
-#ifdef __VERSION__
-    printf("%s | ", __VERSION__);
-#elif defined(__GNUC__)
-    printf("GCC %d.%d.%d | ", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
-#elif defined(__clang__)
+#if defined(__clang__)
     printf("Clang %d.%d.%d | ", __clang_major__, __clang_minor__, __clang_patchlevel__);
+#elif defined(__GNUC__)
+    #ifdef __GNUC_PATCHLEVEL__
+    printf("GCC %d.%d.%d | ", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
+    #else
+    printf("GCC %d.%d | ", __GNUC__, __GNUC_MINOR__);
+    #endif
 #else
     printf("Unknown | ");
 #endif
 
+#if defined(__x86_64__) || defined(_M_X64)
     printf("x86_64\n");
+#elif defined(__i386__) || defined(_M_IX86)
+    printf("i386\n");
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    printf("aarch64\n");
+#elif defined(__arm__) || defined(_M_ARM)
+    printf("arm\n");
+#elif defined(__riscv)
+    printf("riscv%d\n", __riscv_xlen);
+#elif defined(__powerpc64__)
+    printf("ppc64\n");
+#elif defined(__powerpc__)
+    printf("ppc\n");
+#else
+    printf("unknown\n");
+#endif
+
     printf("CONFIG: CACHE=%d CHAIN=%d PATH=%d PID=%d\n", 
            CACHE_SIZE, MAX_CHAIN_DEPTH, PATH_MAX, PID_MAX);
 }
