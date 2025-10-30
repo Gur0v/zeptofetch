@@ -34,7 +34,7 @@ While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, z
 <td width="50%">
 
 ### Performance
-- ⚡ **~1.8ms runtime*** - 200x faster than neofetch*
+- ⚡ **~1.9ms runtime*** - 220x faster than neofetch*
 - 📦 **28KB binary*** - minimal disk footprint
 - 🔒 **Safe caching** - smart process chain optimization
 - 💾 **Zero dependencies** - static linking available
@@ -56,7 +56,7 @@ While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, z
 
 ## 📊 Benchmarks
 
-Tested with [hyperfine](https://github.com/sharkdp/hyperfine) (1000 runs, 5 warmup) on the following system:
+Tested with [hyperfine](https://github.com/sharkdp/hyperfine) on the following system:
 
 <details>
 <summary><b>Test System Specifications</b></summary>
@@ -65,11 +65,12 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine) (1000 runs, 5 warm
 |-----------|--------------|
 | **CPU** | AMD Ryzen 5 5600 (6-core, 12-thread) |
 | **GPU** | AMD Radeon RX 7600 |
-| **RAM** | 32 GB DDR4 |
+| **RAM** | 32 GB DDR4 @ 3200MHz |
 | **Storage** | 931.51 GB SSD |
-| **Kernel** | 6.17.5-xanmod1-1-edge-x64v3 |
+| **Kernel** | 6.17.5-2-cachyos |
 | **OS** | Arch Linux |
-| **Desktop** | KDE Plasma 6.5.0 (Wayland) |
+| **Desktop** | KDE Plasma 6.5.1 (Wayland) |
+| **Motherboard** | MSI B550-A PRO (MS-7C56) |
 
 </details>
 
@@ -85,21 +86,27 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine) (1000 runs, 5 warm
 <tbody>
 <tr>
 <td><strong>zeptofetch</strong></td>
-<td><strong>1.79ms ± 0.12ms</strong></td>
+<td><strong>1.9ms ± 0.1ms</strong></td>
 <td><strong>28 KB</strong></td>
-<td><code>244x faster</code></td>
+<td><code>218x faster</code></td>
 </tr>
 <tr>
 <td>fastfetch</td>
-<td>4.56ms ± 0.19ms</td>
+<td>4.0ms ± 0.2ms</td>
 <td>~200 KB</td>
-<td><code>96x faster</code></td>
+<td><code>104x faster</code></td>
 </tr>
 <tr>
 <td>neofetch</td>
-<td>437.27ms ± 5.28ms</td>
+<td>414.7ms ± 4.3ms</td>
 <td>~50 KB</td>
 <td><em>baseline</em></td>
+</tr>
+<tr>
+<td>screenfetch</td>
+<td>939.8ms ± 12.1ms</td>
+<td>~100 KB</td>
+<td><code>2.3x slower</code></td>
 </tr>
 </tbody>
 </table>
