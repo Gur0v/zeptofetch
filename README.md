@@ -17,42 +17,24 @@
 
 </div>
 
----
-
 ## 🎯 Why zeptofetch?
 
 `zeptofetch` delivers system information in **under 2ms*** with a **28KB binary***. No scripts, no bloat, just pure C doing exactly what you need.
 
 While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, zeptofetch gives you information 200x faster* with a fraction of the size.
 
-*_Performance varies by hardware and system configuration. See [benchmarks](#benchmarks) for details._
+<sub>*_Performance varies by hardware and system configuration. See [benchmarks](#benchmarks) for details._
 
 ## ✨ Features
 
-<table>
-<tr>
-<td width="50%">
+| **Performance**                                          | **Design**                                             |
+| -------------------------------------------------------- | ------------------------------------------------------ |
+| ⚡ **~1.9 ms runtime*** – up to 220× faster than Neofetch | 🎨 **Customizable colors** via a simple `config.h`     |
+| 📦 **28 KB binary*** – minimal disk footprint            | 🐧 **Pure C implementation** – no shell scripts        |
+| 🔒 **Safe caching** – optimized process chain            | 🔧 **Direct /proc parsing** – no `ps` or `popen` calls |
+| 💾 **Zero dependencies** – supports static linking       | ✅ **Production ready** – tested and reliable           |
 
-### Performance
-- ⚡ **~1.9ms runtime*** - 220x faster than neofetch*
-- 📦 **28KB binary*** - minimal disk footprint
-- 🔒 **Safe caching** - smart process chain optimization
-- 💾 **Zero dependencies** - static linking available
-
-</td>
-<td width="50%">
-
-### Design
-- 🎨 **Customizable colors** - simple config.h
-- 🐧 **Pure C implementation** - no shell scripts
-- 🔧 **Direct /proc parsing** - no spawning ps/popen
-- ✅ **Production ready** - extensive testing
-
-</td>
-</tr>
-</table>
-
-*_Results depend on your hardware. See test system specs below._
+<sub>*Results may vary depending on hardware. See test system specs below.*</sub>
 
 ## 📊 Benchmarks
 
