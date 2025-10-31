@@ -39,7 +39,6 @@ uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/$(TARGET)
 
 debug: CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE \
-                -O0 -g -Wall -Wextra -Wpedantic -fsanitize=address,undefined
-debug: LDFLAGS = -fsanitize=address,undefined
+                -O0 -g -Wall -Wextra -Wpedantic
 debug: clean
 	$(CC) $(CFLAGS) -o $(TARGET) $(SRC) $(LDFLAGS)
