@@ -1,33 +1,43 @@
-CC := $(shell command -v gcc 2>/dev/null || command -v clang 2>/dev/null)
+CC  := $(shell command -v gcc 2>/dev/null || command -v clang 2>/dev/null)
 ifeq ($(CC),)
-$(error No suitable compiler found. Please install GCC or Clang)
+$(error install gcc or clang)
 endif
-CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE \
-         -march=native -O3 -flto -pipe -Wall -Wextra -Wpedantic
-LDFLAGS = -Wl,--gc-sections -Wl,-z,relro -Wl,-z,now -Wl,--hash-style=gnu
-PREFIX = /usr/local
-DESTDIR =
-TARGET = zeptofetch
-SRC = zeptofetch.c
-DEPS = config.h
 
+BASE  = -std=c99 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE
+HARD  = -D_FORTIFY_SOURCE=2 -fstack-protector-strong
+SAFE  = -fno-strict-overflow -fno-strict-aliasing -fno-delete-null-pointer-checks
+WARN  = -Wall -Wextra -Wpedantic -Werror=format=2 -Werror=implicit-fallthrough \
+        -Werror=shift-overflow=2 -Werror=cast-function-type -Werror=stringop-overflow=4 \
+        -Werror=vla -Werror=pointer-arith
+LINK  = -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack
+
+PREFIX  ?= /usr/local
+DESTDIR ?=
+TARGET   = zeptofetch
+SRC      = zeptofetch.c
+DEPS     = config.h
 export TZ = UTC
 
-.PHONY: all clean install uninstall release debug
+.PHONY: all release debug clean install uninstall
 
+all: CFLAGS  = $(BASE) $(HARD) $(SAFE) $(WARN) -march=native -O3 -flto -pipe
+all: LDFLAGS = $(LINK) -Wl,--gc-sections -Wl,--hash-style=gnu
 all: $(TARGET)
+
+release: CFLAGS  = $(BASE) $(HARD) $(SAFE) $(WARN) -march=x86-64-v3 -mtune=generic -O3 -flto -pipe
+release: LDFLAGS = -static $(LINK) -Wl,--gc-sections -Wl,--hash-style=gnu
+release: clean
+	$(CC) $(CFLAGS) -o $(TARGET) $(SRC) $(LDFLAGS)
+	strip --strip-all --remove-section=.note --remove-section=.comment $(TARGET)
+
+debug: CFLAGS  = $(BASE) -O0 -g -fno-omit-frame-pointer $(WARN)
+debug: LDFLAGS = $(LINK)
+debug: clean
+	$(CC) $(CFLAGS) -o $(TARGET) $(SRC) $(LDFLAGS)
 
 $(TARGET): $(SRC) $(DEPS)
 	$(CC) $(CFLAGS) -ffunction-sections -fdata-sections -o $@ $(SRC) $(LDFLAGS)
 	strip --strip-all --remove-section=.note --remove-section=.comment $@
-
-release: CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE \
-                  -march=x86-64-v3 -mtune=generic -O3 -flto -pipe \
-                  -Wall -Wextra -ffunction-sections -fdata-sections
-release: LDFLAGS = -static -Wl,--gc-sections -Wl,--hash-style=gnu
-release: clean
-	$(CC) $(CFLAGS) -o $(TARGET) $(SRC) $(LDFLAGS)
-	strip --strip-all --remove-section=.note --remove-section=.comment $(TARGET)
 
 clean:
 	rm -f $(TARGET)
@@ -37,8 +47,3 @@ install: $(TARGET)
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/$(TARGET)
-
-debug: CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE \
-                -O0 -g -Wall -Wextra -Wpedantic
-debug: clean
-	$(CC) $(CFLAGS) -o $(TARGET) $(SRC) $(LDFLAGS)
