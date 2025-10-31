@@ -9,6 +9,8 @@
 #include <locale.h>
 #include <dirent.h>
 #include <errno.h>
+#include <time.h>
+#include <sys/stat.h>
 #include "config.h"
 
 #ifndef PATH_MAX
@@ -21,7 +23,8 @@
 #define PID_MAX           4194304
 #define CACHE_SIZE        512
 #define MAX_CHAIN_DEPTH   1000
-#define VERSION           "v1.1"
+#define WM_SCAN_TIMEOUT   2
+#define VERSION           "v1.2-rc1"
 
 typedef struct {
     pid_t pid;
@@ -29,6 +32,7 @@ typedef struct {
     char exe[PATH_MAX];
     int has_exe;
     int has_ppid;
+    time_t cached_time;
 } proc_t;
 
 static proc_t cache[CACHE_SIZE];
@@ -57,10 +61,23 @@ static int valid_pid(pid_t pid)
     return pid > 0 && pid <= PID_MAX;
 }
 
+static int process_exists(pid_t pid)
+{
+    char path[64];
+    struct stat st;
+    snprintf(path, sizeof(path), "/proc/%d", pid);
+    return stat(path, &st) == 0;
+}
+
 static proc_t *cache_get(pid_t pid)
 {
     for (size_t i = 0; i < cache_cnt; ++i) {
-        if (cache[i].pid == pid) return &cache[i];
+        if (cache[i].pid == pid) {
+            if (!process_exists(pid)) {
+                return NULL;
+            }
+            return &cache[i];
+        }
     }
     return NULL;
 }
@@ -73,6 +90,7 @@ static proc_t *cache_add(pid_t pid)
     cache[cache_cnt].exe[0] = '\0';
     cache[cache_cnt].has_exe = 0;
     cache[cache_cnt].has_ppid = 0;
+    cache[cache_cnt].cached_time = time(NULL);
     return &cache[cache_cnt++];
 }
 
@@ -91,17 +109,30 @@ static int read_ppid(pid_t pid, pid_t *out)
 static int read_exe(pid_t pid, char *buf, size_t sz)
 {
     char path[PATH_MAX];
+    char temp[PATH_MAX];
     int r = snprintf(path, sizeof(path), "/proc/%d/exe", pid);
     if (r < 0 || (size_t)r >= sizeof(path)) return -1;
-    ssize_t len = readlink(path, buf, sz - 1);
+    ssize_t len = readlink(path, temp, sizeof(temp) - 1);
     if (len <= 0) return -1;
-    buf[len] = '\0';
+    temp[len] = '\0';
+    
+    char *resolved = realpath(temp, NULL);
+    if (resolved) {
+        str_copy(buf, resolved, sz);
+        free(resolved);
+        return 0;
+    }
+    
+    str_copy(buf, temp, sz);
     return 0;
 }
 
 static int get_proc(pid_t pid, proc_t *p)
 {
     if (!valid_pid(pid) || !p) return -1;
+    
+    if (!process_exists(pid)) return -1;
+    
     proc_t *cached = cache_get(pid);
     if (cached) {
         if (p != cached) *p = *cached;
@@ -295,9 +326,15 @@ static void get_wm(char *buf, size_t sz)
         return;
     }
 
+    time_t start_time = time(NULL);
     struct dirent *ent;
     char comm[MAX_SMALL];
+    
     while ((ent = readdir(proc))) {
+        if (time(NULL) - start_time >= WM_SCAN_TIMEOUT) {
+            break;
+        }
+        
         if (ent->d_name[0] < '0' || ent->d_name[0] > '9') continue;
         if (read_comm(ent->d_name, comm, sizeof(comm)) != 0) continue;
         if (comm[0] == '\0') continue;
@@ -426,8 +463,8 @@ static void print_version(void)
     printf("unknown\n");
 #endif
 
-    printf("CONFIG: CACHE=%d CHAIN=%d PATH=%d PID=%d\n", 
-           CACHE_SIZE, MAX_CHAIN_DEPTH, PATH_MAX, PID_MAX);
+    printf("CONFIG: CACHE=%d CHAIN=%d PATH=%d PID=%d TIMEOUT=%ds\n", 
+           CACHE_SIZE, MAX_CHAIN_DEPTH, PATH_MAX, PID_MAX, WM_SCAN_TIMEOUT);
 }
 
 static void display(const char *user, const char *host, const char *os,
