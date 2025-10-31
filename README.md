@@ -150,10 +150,10 @@ The `--version` flag displays:
 Customize colors by editing `config.h`:
 
 ```c
-#define COLOR_1 "\033[1;34m"     // Primary (headers, ASCII art)
-#define COLOR_2 "\033[1;37m"     // Secondary (ASCII details)
-#define COLOR_3 "\033[38;5;208m" // Accent (labels)
-#define COLOR_RESET "\033[0m"    // Reset to default
+#define COLOR_1 "\033[1;34m"     // Bold Blue
+#define COLOR_2 "\033[1;37m"     // Bold White
+#define COLOR_3 "\033[38;5;208m" // Bold Orange
+#define COLOR_RESET "\033[0m"    // Normal
 ```
 
 Rebuild after changes:
