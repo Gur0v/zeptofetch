@@ -1,38 +1,46 @@
+#include <assert.h>
+#include <ctype.h>
+#include <dirent.h>
+#include <errno.h>
+#include <limits.h>
+#include <locale.h>
+#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/utsname.h>
-#include <pwd.h>
-#include <limits.h>
-#include <ctype.h>
-#include <locale.h>
-#include <dirent.h>
-#include <errno.h>
-#include <time.h>
 #include <sys/stat.h>
+#include <sys/utsname.h>
+#include <time.h>
+#include <unistd.h>
 #include "config.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
 #endif
 
-#define MAX_NAME          128
-#define MAX_SMALL         64
-#define MAX_LINE          64
-#define PID_MAX           4194304
-#define CACHE_SIZE        512
-#define MAX_CHAIN_DEPTH   1000
-#define WM_SCAN_TIMEOUT   2
-#define VERSION           "v1.2-rc1"
+#define ARRAY_LEN(a)     (sizeof(a)/sizeof((a)[0]))
+#define CACHE_SIZE       512
+#define MAX_CHAIN        1000
+#define MAX_LINE         64
+#define MAX_NAME         128
+#define MAX_SMALL        64
+#define PID_MAX          4194304
+#define VERSION          "v1.2"
+#define WM_SCAN_TIMEOUT  2
+
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+_Static_assert(CACHE_SIZE <= PID_MAX, "cache bigger than pid space");
+#else
+typedef char static_assert_cache_size[(CACHE_SIZE <= PID_MAX) ? 1 : -1];
+#endif
 
 typedef struct {
     pid_t pid;
     pid_t ppid;
     char exe[PATH_MAX];
+    time_t cached_time;
     int has_exe;
     int has_ppid;
-    time_t cached_time;
 } proc_t;
 
 static proc_t cache[CACHE_SIZE];
@@ -40,18 +48,143 @@ static size_t cache_cnt = 0;
 static char wm_cached[MAX_SMALL] = {0};
 static int wm_found = 0;
 
+static const struct {
+    const char *name;
+    size_t len;
+} g_shells[] = {
+    {"bash", 4},
+    {"csh", 3},
+    {"dash", 4},
+    {"elvish", 6},
+    {"fish", 4},
+    {"ksh", 3},
+    {"sh", 2},
+    {"tcsh", 4},
+    {"yash", 4},
+    {"zsh", 3},
+};
+
+static const struct {
+    const char *name;
+    size_t len;
+} g_terms[] = {
+    {"alacritty", 9},
+    {"aterm", 5},
+    {"contour", 7},
+    {"cool-retro-term", 15},
+    {"eterm", 5},
+    {"evilvte", 7},
+    {"fbterm", 6},
+    {"foot", 4},
+    {"ghostty", 7},
+    {"gnome-terminal", 14},
+    {"guake", 5},
+    {"hyper", 5},
+    {"kitty", 5},
+    {"konsole", 7},
+    {"kterm", 5},
+    {"lilyterm", 8},
+    {"lxterminal", 10},
+    {"mate-terminal", 13},
+    {"mlterm", 6},
+    {"mrxvt", 5},
+    {"nxterm", 6},
+    {"pterm", 5},
+    {"qterminal", 9},
+    {"rio", 3},
+    {"roxterm", 7},
+    {"sakura", 6},
+    {"st", 2},
+    {"tabby", 5},
+    {"terminator", 10},
+    {"termine", 7},
+    {"terminology", 11},
+    {"tilix", 5},
+    {"tilda", 5},
+    {"urxvt", 5},
+    {"wezterm", 7},
+    {"wterm", 5},
+    {"xfce4-terminal", 14},
+    {"xterm", 5},
+    {"xvt", 3},
+    {"yaft", 4},
+    {"yakuake", 7},
+    {"ptyxis", 6},
+};
+
+static const struct {
+    const char *name;
+    size_t len;
+} g_wms[] = {
+    {"acme", 4},
+    {"afterstep", 9},
+    {"awesome", 7},
+    {"berry", 5},
+    {"bspwm", 5},
+    {"cage", 4},
+    {"catwm", 5},
+    {"cinnamon", 8},
+    {"compiz", 6},
+    {"ctwm", 4},
+    {"dminiwm", 7},
+    {"dwm", 3},
+    {"echinus", 7},
+    {"enlightenment", 13},
+    {"evilwm", 6},
+    {"fluxbox", 7},
+    {"frankenwm", 9},
+    {"fvwm", 4},
+    {"fvwm-crystal", 12},
+    {"gnome-shell", 11},
+    {"goomwwm", 7},
+    {"herbstluftwm", 12},
+    {"hyprland", 8},
+    {"icewm", 5},
+    {"ion", 3},
+    {"jwm", 3},
+    {"kwin", 4},
+    {"labwc", 5},
+    {"leftwm", 6},
+    {"lfwm", 4},
+    {"marco", 5},
+    {"mate-session", 12},
+    {"metacity", 8},
+    {"muffin", 6},
+    {"mutter", 6},
+    {"niri", 4},
+    {"notion", 6},
+    {"olivetti", 8},
+    {"openbox", 7},
+    {"pekwm", 5},
+    {"plwm", 4},
+    {"ratpoison", 9},
+    {"river", 5},
+    {"sawfish", 7},
+    {"snapwm", 6},
+    {"spectrwm", 8},
+    {"stumpwm", 7},
+    {"sway", 4},
+    {"tinywm", 6},
+    {"trayer", 6},
+    {"twm", 3},
+    {"vwm", 3},
+    {"waimea", 6},
+    {"wayfire", 7},
+    {"wmii", 4},
+    {"wmx", 3},
+    {"xfwm4", 5},
+    {"xmonad", 6},
+};
+
+__attribute__((nonnull, access(write_only, 1), access(read_only, 2)))
 static void str_copy(char *dst, const char *src, size_t sz)
 {
-    if (!dst || sz == 0) return;
-    if (!src) {
-        dst[0] = '\0';
-        return;
-    }
-    size_t len = strlen(src);
+    if (sz == 0) __builtin_trap();
+    size_t len = strnlen(src, sz);
     if (len < sz) {
-        memcpy(dst, src, len + 1);
+        __builtin_memcpy(dst, src, len + 1);
     } else {
-        memcpy(dst, src, sz - 1);
+        __builtin_memcpy(dst, src, sz - 1);
         dst[sz - 1] = '\0';
     }
 }
@@ -61,11 +194,12 @@ static int valid_pid(pid_t pid)
     return pid > 0 && pid <= PID_MAX;
 }
 
-static int process_exists(pid_t pid)
+static int proc_exists(pid_t pid)
 {
     char path[64];
     struct stat st;
-    snprintf(path, sizeof(path), "/proc/%d", pid);
+    int n = snprintf(path, sizeof(path), "/proc/%d", pid);
+    if (n < 0 || (size_t)n >= sizeof(path)) return 0;
     return stat(path, &st) == 0;
 }
 
@@ -73,9 +207,7 @@ static proc_t *cache_get(pid_t pid)
 {
     for (size_t i = 0; i < cache_cnt; ++i) {
         if (cache[i].pid == pid) {
-            if (!process_exists(pid)) {
-                return NULL;
-            }
+            if (!proc_exists(pid)) return NULL;
             return &cache[i];
         }
     }
@@ -85,20 +217,24 @@ static proc_t *cache_get(pid_t pid)
 static proc_t *cache_add(pid_t pid)
 {
     if (cache_cnt >= CACHE_SIZE) return NULL;
-    cache[cache_cnt].pid = pid;
-    cache[cache_cnt].ppid = -1;
-    cache[cache_cnt].exe[0] = '\0';
-    cache[cache_cnt].has_exe = 0;
-    cache[cache_cnt].has_ppid = 0;
-    cache[cache_cnt].cached_time = time(NULL);
-    return &cache[cache_cnt++];
+    size_t idx = cache_cnt;
+    assert(idx < ARRAY_LEN(cache));
+    cache[idx].pid = pid;
+    cache[idx].ppid = -1;
+    cache[idx].exe[0] = '\0';
+    cache[idx].has_exe = 0;
+    cache[idx].has_ppid = 0;
+    cache[idx].cached_time = time(NULL);
+    cache_cnt++;
+    return &cache[idx];
 }
 
+__attribute__((warn_unused_result))
 static int read_ppid(pid_t pid, pid_t *out)
 {
     char path[PATH_MAX];
-    int r = snprintf(path, sizeof(path), "/proc/%d/stat", pid);
-    if (r < 0 || (size_t)r >= sizeof(path)) return -1;
+    int n = snprintf(path, sizeof(path), "/proc/%d/stat", pid);
+    if (n < 0 || (size_t)n >= sizeof(path)) return -1;
     FILE *f = fopen(path, "r");
     if (!f) return -1;
     int ok = fscanf(f, "%*d %*s %*c %d", out);
@@ -106,12 +242,13 @@ static int read_ppid(pid_t pid, pid_t *out)
     return (ok == 1) ? 0 : -1;
 }
 
+__attribute__((warn_unused_result, nonnull, access(write_only, 2)))
 static int read_exe(pid_t pid, char *buf, size_t sz)
 {
     char path[PATH_MAX];
     char temp[PATH_MAX];
-    int r = snprintf(path, sizeof(path), "/proc/%d/exe", pid);
-    if (r < 0 || (size_t)r >= sizeof(path)) return -1;
+    int n = snprintf(path, sizeof(path), "/proc/%d/exe", pid);
+    if (n < 0 || (size_t)n >= sizeof(path)) return -1;
     ssize_t len = readlink(path, temp, sizeof(temp) - 1);
     if (len <= 0) return -1;
     temp[len] = '\0';
@@ -127,19 +264,21 @@ static int read_exe(pid_t pid, char *buf, size_t sz)
     return 0;
 }
 
+__attribute__((warn_unused_result, nonnull))
 static int get_proc(pid_t pid, proc_t *p)
 {
-    if (!valid_pid(pid) || !p) return -1;
-    
-    if (!process_exists(pid)) return -1;
+    if (!valid_pid(pid)) return -1;
+    if (!proc_exists(pid)) return -1;
     
     proc_t *cached = cache_get(pid);
     if (cached) {
         if (p != cached) *p = *cached;
         return 0;
     }
+    
     proc_t *e = cache_add(pid);
     if (!e) return -1;
+    
     e->pid = pid;
     if (read_ppid(pid, &e->ppid) == 0) {
         e->has_ppid = 1;
@@ -156,28 +295,35 @@ static int get_proc(pid_t pid, proc_t *p)
     return 0;
 }
 
+__attribute__((nonnull))
 static size_t build_chain(pid_t start, proc_t *out, size_t max)
 {
     size_t idx = 0;
     pid_t cur = start;
-    while (valid_pid(cur) && idx < max && idx < MAX_CHAIN_DEPTH) {
+    while (valid_pid(cur) && idx < max && idx < MAX_CHAIN) {
         if (get_proc(cur, &out[idx]) != 0) break;
         pid_t ppid = out[idx].has_ppid ? out[idx].ppid : -1;
         if (ppid == cur || ppid <= 0) {
-            idx++;
+            size_t next;
+            if (__builtin_add_overflow(idx, 1, &next)) break;
+            idx = next;
             break;
         }
         cur = ppid;
-        idx++;
+        size_t next;
+        if (__builtin_add_overflow(idx, 1, &next)) break;
+        idx = next;
     }
     return idx;
 }
 
+__attribute__((nonnull))
 static int str_eq(const char *a, const char *b)
 {
     return strcmp(a, b) == 0;
 }
 
+__attribute__((nonnull))
 static int str_prefix(const char *s, const char *pre, size_t pre_len)
 {
     return strncmp(s, pre, pre_len) == 0;
@@ -186,34 +332,29 @@ static int str_prefix(const char *s, const char *pre, size_t pre_len)
 static int is_shell(const char *n)
 {
     if (!n) return 0;
-    switch (n[0]) {
-        case 'b': return str_eq(n, "bash");
-        case 'z': return str_eq(n, "zsh");
-        case 's': return str_eq(n, "sh");
-        case 'f': return str_eq(n, "fish");
-        case 'd': return str_eq(n, "dash");
-        case 'k': return str_eq(n, "ksh");
-        case 't': return str_eq(n, "tcsh");
-        case 'c': return str_eq(n, "csh");
-        case 'e': return str_eq(n, "elvish");
-        case 'y': return str_eq(n, "yash");
-        default:  return 0;
+    char fc = n[0];
+    for (size_t i = 0; i < ARRAY_LEN(g_shells); ++i) {
+        if (fc != g_shells[i].name[0]) continue;
+        if (str_eq(n, g_shells[i].name)) return 1;
     }
+    return 0;
 }
 
+__attribute__((nonnull, access(read_only, 1), access(write_only, 2)))
 static void basename_of(const char *path, char *out, size_t sz)
 {
-    if (!path || !out || sz == 0) return;
     const char *b = strrchr(path, '/');
     str_copy(out, b ? b + 1 : path, sz);
 }
 
+__attribute__((nonnull, access(write_only, 1)))
 static void get_user(char *buf, size_t sz)
 {
     struct passwd *pw = getpwuid(getuid());
     str_copy(buf, (pw && pw->pw_name) ? pw->pw_name : "user", sz);
 }
 
+__attribute__((nonnull, access(write_only, 1)))
 static void get_host(char *buf, size_t sz)
 {
     if (gethostname(buf, sz) != 0) {
@@ -223,6 +364,7 @@ static void get_host(char *buf, size_t sz)
     buf[sz - 1] = '\0';
 }
 
+__attribute__((nonnull))
 static void get_shell(proc_t *chain, size_t cnt, char *buf, size_t sz)
 {
     char base[MAX_NAME];
@@ -237,35 +379,20 @@ static void get_shell(proc_t *chain, size_t cnt, char *buf, size_t sz)
     str_copy(buf, "unknown", sz);
 }
 
+__attribute__((nonnull))
 static void get_term(proc_t *chain, size_t cnt, char *buf, size_t sz)
 {
-    static const struct {
-        const char *name;
-        size_t len;
-    } terms[] = {
-        {"gnome-terminal", 14}, {"urxvt", 5}, {"konsole", 7}, {"alacritty", 9},
-        {"xterm", 5}, {"kitty", 5}, {"foot", 4}, {"wezterm", 7}, {"st", 2},
-        {"termite", 7}, {"terminator", 10}, {"tilix", 5}, {"terminology", 11},
-        {"qterminal", 9}, {"lxterminal", 10}, {"mate-terminal", 13},
-        {"xfce4-terminal", 14}, {"ptyxis", 6}, {"rio", 3}, {"ghostty", 7},
-        {"contour", 7}, {"tabby", 5}, {"hyper", 5}, {"yakuake", 7},
-        {"roxterm", 7}, {"sakura", 6}, {"tilda", 5}, {"guake", 5},
-        {"cool-retro-term", 15}, {"eterm", 5}, {"mlterm", 6}, {"lilyterm", 8},
-        {"aterm", 5}, {"evilvte", 7}, {"xvt", 3}, {"nxterm", 6}, {"kterm", 5},
-        {"mrxvt", 5}, {"pterm", 5}, {"wterm", 5}, {"yaft", 4}, {"fbterm", 6}
-    };
-
     char base[MAX_NAME];
     for (size_t i = 1; i < cnt; ++i) {
         if (!chain[i].has_exe) continue;
         basename_of(chain[i].exe, base, sizeof(base));
         if (is_shell(base)) continue;
         char fc = base[0];
-        for (size_t j = 0; j < sizeof(terms) / sizeof(terms[0]); ++j) {
-            if (fc != terms[j].name[0]) continue;
-            if (str_eq(base, terms[j].name) ||
-                str_prefix(base, terms[j].name, terms[j].len)) {
-                str_copy(buf, terms[j].name, sz);
+        for (size_t j = 0; j < ARRAY_LEN(g_terms); ++j) {
+            if (fc != g_terms[j].name[0]) continue;
+            if (str_eq(base, g_terms[j].name) ||
+                str_prefix(base, g_terms[j].name, g_terms[j].len)) {
+                str_copy(buf, g_terms[j].name, sz);
                 return;
             }
         }
@@ -277,11 +404,12 @@ static void get_term(proc_t *chain, size_t cnt, char *buf, size_t sz)
     str_copy(buf, "unknown", sz);
 }
 
+__attribute__((warn_unused_result, cold, nonnull, access(read_only, 1), access(write_only, 2)))
 static int read_comm(const char *pid_str, char *comm, size_t sz)
 {
     char path[PATH_MAX];
-    int r = snprintf(path, sizeof(path), "/proc/%s/comm", pid_str);
-    if (r < 0 || (size_t)r >= sizeof(path)) return -1;
+    int n = snprintf(path, sizeof(path), "/proc/%s/comm", pid_str);
+    if (n < 0 || (size_t)n >= sizeof(path)) return -1;
     FILE *f = fopen(path, "r");
     if (!f) return -1;
     if (!fgets(comm, sz, f)) {
@@ -289,36 +417,18 @@ static int read_comm(const char *pid_str, char *comm, size_t sz)
         return -1;
     }
     fclose(f);
-    comm[strcspn(comm, "\n")] = '\0';
+    size_t len = strnlen(comm, sz);
+    if (len > 0 && comm[len - 1] == '\n') comm[len - 1] = '\0';
     return 0;
 }
 
+__attribute__((nonnull, access(write_only, 1)))
 static void get_wm(char *buf, size_t sz)
 {
     if (wm_found) {
         str_copy(buf, wm_cached, sz);
         return;
     }
-
-    static const struct {
-        const char *name;
-        size_t len;
-    } wms[] = {
-        {"acme", 4}, {"afterstep", 9}, {"awesome", 7}, {"berry", 5},
-        {"bspwm", 5}, {"cage", 4}, {"catwm", 5}, {"compiz", 6},
-        {"cinnamon", 8}, {"ctwm", 4}, {"dminiwm", 7}, {"dwm", 3},
-        {"echinus", 7}, {"enlightenment", 13}, {"evilwm", 6}, {"fluxbox", 7},
-        {"frankenwm", 9}, {"fvwm", 4}, {"fvwm-crystal", 12}, {"goomwwm", 7},
-        {"herbstluftwm", 12}, {"hyprland", 8}, {"icewm", 5}, {"ion", 3},
-        {"jwm", 3}, {"kwin", 4}, {"leftwm", 6}, {"labwc", 5}, {"lfwm", 4},
-        {"marco", 5}, {"metacity", 8}, {"muffin", 6}, {"mutter", 6},
-        {"notion", 6}, {"olivetti", 8}, {"openbox", 7}, {"pekwm", 5},
-        {"plwm", 4}, {"ratpoison", 9}, {"river", 5}, {"sway", 4},
-        {"spectrwm", 8}, {"stumpwm", 7}, {"sawfish", 7}, {"snapwm", 6},
-        {"tinywm", 6}, {"trayer", 6}, {"twm", 3}, {"vwm", 3}, {"waimea", 6},
-        {"wayfire", 7}, {"wmii", 4}, {"wmx", 3}, {"xfwm4", 5}, {"xmonad", 6},
-        {"gnome-shell", 11}, {"mate-session", 12}, {"niri", 4}
-    };
 
     DIR *proc = opendir("/proc");
     if (!proc) {
@@ -331,19 +441,16 @@ static void get_wm(char *buf, size_t sz)
     char comm[MAX_SMALL];
     
     while ((ent = readdir(proc))) {
-        if (time(NULL) - start_time >= WM_SCAN_TIMEOUT) {
-            break;
-        }
-        
+        if (time(NULL) - start_time >= WM_SCAN_TIMEOUT) break;
         if (ent->d_name[0] < '0' || ent->d_name[0] > '9') continue;
         if (read_comm(ent->d_name, comm, sizeof(comm)) != 0) continue;
         if (comm[0] == '\0') continue;
 
         char fc = comm[0];
-        for (size_t i = 0; i < sizeof(wms) / sizeof(wms[0]); ++i) {
-            if (fc != wms[i].name[0]) continue;
-            if (str_eq(comm, wms[i].name) ||
-                str_prefix(comm, wms[i].name, wms[i].len)) {
+        for (size_t i = 0; i < ARRAY_LEN(g_wms); ++i) {
+            if (fc != g_wms[i].name[0]) continue;
+            if (str_eq(comm, g_wms[i].name) ||
+                str_prefix(comm, g_wms[i].name, g_wms[i].len)) {
                 if (str_eq(comm, "gnome-shell")) {
                     str_copy(buf, "mutter", sz);
                 } else if (str_eq(comm, "cinnamon")) {
@@ -353,7 +460,7 @@ static void get_wm(char *buf, size_t sz)
                 } else if (str_prefix(comm, "kwin", 4)) {
                     str_copy(buf, "kwin", sz);
                 } else {
-                    str_copy(buf, wms[i].name, sz);
+                    str_copy(buf, g_wms[i].name, sz);
                 }
                 str_copy(wm_cached, buf, sizeof(wm_cached));
                 wm_found = 1;
@@ -368,6 +475,7 @@ static void get_wm(char *buf, size_t sz)
     wm_found = 1;
 }
 
+__attribute__((nonnull, access(write_only, 1)))
 static void get_os(char *buf, size_t sz)
 {
     FILE *f = fopen("/etc/os-release", "r");
@@ -401,7 +509,8 @@ static void get_os(char *buf, size_t sz)
                 found_name = 1;
             } else {
                 char *p = line + 5;
-                p[strcspn(p, "\n")] = '\0';
+                size_t len = strnlen(p, sizeof(line) - 5);
+                if (len > 0 && p[len - 1] == '\n') p[len - 1] = '\0';
                 str_copy(name_buf, p, sizeof(name_buf));
                 found_name = 1;
             }
@@ -464,14 +573,15 @@ static void print_version(void)
 #endif
 
     printf("CONFIG: CACHE=%d CHAIN=%d PATH=%d PID=%d TIMEOUT=%ds\n", 
-           CACHE_SIZE, MAX_CHAIN_DEPTH, PATH_MAX, PID_MAX, WM_SCAN_TIMEOUT);
+           CACHE_SIZE, MAX_CHAIN, PATH_MAX, PID_MAX, WM_SCAN_TIMEOUT);
 }
 
+__attribute__((nonnull))
 static void display(const char *user, const char *host, const char *os,
                     const char *kern, const char *shell, const char *wm,
                     const char *term)
 {
-    size_t len = strlen(user) + strlen(host) + 1;
+    size_t len = strnlen(user, MAX_SMALL) + strnlen(host, MAX_SMALL) + 1;
     printf("%s    ___ %s     %s%s@%s%s\n",
            COLOR_1, COLOR_RESET, COLOR_1, user, host, COLOR_RESET);
     printf("%s   (%s.· %s|%s     ", COLOR_1, COLOR_2, COLOR_1, COLOR_RESET);
@@ -515,7 +625,7 @@ int main(int argc, char **argv)
 
     proc_t chain[CACHE_SIZE];
     cache_cnt = 0;
-    size_t cnt = build_chain(getpid(), chain, sizeof(chain) / sizeof(chain[0]));
+    size_t cnt = build_chain(getpid(), chain, ARRAY_LEN(chain));
 
     get_shell(chain, cnt, shell, sizeof(shell));
     get_term(chain, cnt, term, sizeof(term));
