@@ -18,18 +18,15 @@
 </div>
 
 ## 🎯 Why zeptofetch?
+`zeptofetch` delivers system information in **under 3ms*** with a **28KB binary***. No scripts, no bloat, just pure C doing exactly what you need.
+While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, zeptofetch gives you information 180x faster* with a fraction of the size.
 
-`zeptofetch` delivers system information in **under 2ms*** with a **28KB binary***. No scripts, no bloat, just pure C doing exactly what you need.
-
-While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, zeptofetch gives you information 200x faster* with a fraction of the size.
-
-<sub>*_Performance varies by hardware and system configuration. See [benchmarks](#benchmarks) for details._
+<sub>*_Performance varies by hardware and system configuration. See [benchmarks](#benchmarks) for details._</sub>
 
 ## ✨ Features
-
 | **Performance**                                          | **Design**                                             |
 | -------------------------------------------------------- | ------------------------------------------------------ |
-| ⚡ **~1.9 ms runtime*** – up to 220× faster than Neofetch | 🎨 **Customizable colors** via a simple `config.h`     |
+| ⚡ **~2.3 ms runtime*** – up to 180× faster than neofetch | 🎨 **Customizable colors** via a simple `config.h`     |
 | 📦 **28 KB binary*** – minimal disk footprint            | 🐧 **Pure C implementation** – no shell scripts        |
 | 🔒 **Safe caching** – optimized process chain            | 🔧 **Direct /proc parsing** – no `ps` or `popen` calls |
 | 💾 **Zero dependencies** – supports static linking       | ✅ **Production ready** – tested and reliable           |
@@ -37,7 +34,6 @@ While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, z
 <sub>*Results may vary depending on hardware. See test system specs below.*</sub>
 
 ## 📊 Benchmarks
-
 Tested with [hyperfine](https://github.com/sharkdp/hyperfine) on the following system:
 
 <details>
@@ -49,7 +45,7 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine) on the following s
 | **GPU** | AMD Radeon RX 7600 |
 | **RAM** | 32 GB DDR4 @ 3200MHz |
 | **Storage** | 931.51 GB SSD |
-| **Kernel** | 6.17.5-2-cachyos |
+| **Kernel** | 6.17.5-1-cachyos-bore-lto |
 | **OS** | Arch Linux |
 | **Desktop** | KDE Plasma 6.5.1 (Wayland) |
 | **Motherboard** | MSI B550-A PRO (MS-7C56) |
@@ -68,27 +64,27 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine) on the following s
 <tbody>
 <tr>
 <td><strong>zeptofetch</strong></td>
-<td><strong>1.9ms ± 0.1ms</strong></td>
+<td><strong>2.3ms ± 0.1ms</strong></td>
 <td><strong>28 KB</strong></td>
-<td><code>218x faster</code></td>
+<td><code>180x faster</code></td>
 </tr>
 <tr>
 <td>fastfetch</td>
-<td>4.0ms ± 0.2ms</td>
+<td>4.7ms ± 0.2ms</td>
 <td>~200 KB</td>
-<td><code>104x faster</code></td>
+<td><code>89x faster</code></td>
 </tr>
 <tr>
 <td>neofetch</td>
-<td>414.7ms ± 4.3ms</td>
+<td>420.9ms ± 2.9ms</td>
 <td>~50 KB</td>
 <td><em>baseline</em></td>
 </tr>
 <tr>
 <td>screenfetch</td>
-<td>939.8ms ± 12.1ms</td>
+<td>935.8ms ± 7.5ms</td>
 <td>~100 KB</td>
-<td><code>2.3x slower</code></td>
+<td><code>2.2x slower</code></td>
 </tr>
 </tbody>
 </table>
