@@ -10,6 +10,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/utsname.h>
+#include <sys/prctl.h>
 #include <time.h>
 #include <unistd.h>
 #include "config.h"
@@ -25,8 +26,9 @@
 #define MAX_NAME         128
 #define MAX_SMALL        64
 #define PID_MAX          4194304
-#define VERSION          "v1.3"
+#define VERSION          "v1.4"
 #define WM_SCAN_TIMEOUT  1
+#define MIN(a,b)         ((a) < (b) ? (a) : (b))
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 _Static_assert(CACHE_SIZE <= PID_MAX, "cache bigger than pid space");
@@ -285,6 +287,22 @@ static int read_exe(pid_t pid, char *buf, size_t sz)
     
     char *resolved = realpath(temp, NULL);
     if (resolved) {
+        struct stat st;
+        if (stat(resolved, &st) != 0) {
+            free(resolved);
+            return -1;
+        }
+        if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode)) {
+            free(resolved);
+            return -1;
+        }
+        if (strncmp(resolved, "/usr", 4) != 0 &&
+            strncmp(resolved, "/bin", 4) != 0 &&
+            strncmp(resolved, "/opt", 4) != 0 &&
+            strncmp(resolved, "/home", 5) != 0) {
+            free(resolved);
+            return -1;
+        }
         str_copy(buf, resolved, sz);
         free(resolved);
         return 0;
@@ -487,8 +505,10 @@ static void get_wm(char *buf, size_t sz)
     time_t start_time = time(NULL);
     struct dirent *ent;
     char comm[MAX_SMALL];
+    size_t dirent_count = 0;
     
     while ((ent = readdir(proc))) {
+        if (++dirent_count > 50000) break;
         if (time(NULL) - start_time >= WM_SCAN_TIMEOUT) break;
         if (ent->d_name[0] < '0' || ent->d_name[0] > '9') continue;
         if (!likely_wm_pid(ent->d_name)) continue;
@@ -636,12 +656,29 @@ static void print_version(void)
            CACHE_SIZE, MAX_CHAIN, PATH_MAX, PID_MAX, WM_SCAN_TIMEOUT);
 }
 
+__attribute__((nonnull, access(write_only, 1), access(read_only, 3)))
+static void sanitise_release(char *dst, size_t sz, const char *src)
+{
+    size_t i = 0;
+    while (i < sz - 1 && src[i] != '\0' && src[i] != ' ') {
+        dst[i] = src[i];
+        i++;
+    }
+    dst[i] = '\0';
+}
+
 __attribute__((nonnull))
 static void display(const char *user, const char *host, const char *os,
                     const char *kern, const char *shell, const char *wm,
                     const char *term)
 {
-    size_t len = strnlen(user, MAX_SMALL) + strnlen(host, MAX_SMALL) + 1;
+    char rel_clean[64];
+    sanitise_release(rel_clean, sizeof(rel_clean), kern);
+    
+    char tmp[256];
+    int n = snprintf(tmp, sizeof(tmp), "%s@%s", user, host);
+    size_t len = (n > 0 && (size_t)n < sizeof(tmp)) ? (size_t)n : 0;
+    
     printf("%s    ___ %s     %s%s@%s%s\n",
            COLOR_1, COLOR_RESET, COLOR_1, user, host, COLOR_RESET);
     printf("%s   (%s.· %s|%s     ", COLOR_1, COLOR_2, COLOR_1, COLOR_RESET);
@@ -649,7 +686,7 @@ static void display(const char *user, const char *host, const char *os,
     printf("%s   (%s<>%s %s|%s     %sOS:%s %s\n",
            COLOR_1, COLOR_3, COLOR_RESET, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, os);
     printf("%s  / %s__  %s\\%s    %sKernel:%s %s\n",
-           COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, kern);
+           COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, rel_clean);
     printf("%s ( %s/  \\ %s/|%s   %sShell:%s %s\n",
            COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, shell);
     printf("%s%s_/%s\\ %s__)%s/%s_%s)%s   %sWM:%s %s\n",
@@ -661,6 +698,15 @@ static void display(const char *user, const char *host, const char *os,
 
 int main(int argc, char **argv)
 {
+    prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+    prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
+    
+    if (geteuid() != getuid() || getegid() != getgid()) {
+        if (setuid(getuid()) != 0 || setgid(getgid()) != 0) {
+            return 1;
+        }
+    }
+    
     setlocale(LC_ALL, "");
 
     if (argc > 1) {
@@ -683,9 +729,11 @@ int main(int argc, char **argv)
     get_user(user, sizeof(user));
     get_host(host, sizeof(host));
 
-    proc_t chain[CACHE_SIZE];
+    proc_t *chain = malloc(MIN(CACHE_SIZE, 1024) * sizeof(*chain));
+    if (!chain) return 1;
+    
     cache_cnt = 0;
-    size_t cnt = build_chain(getpid(), chain, ARRAY_LEN(chain));
+    size_t cnt = build_chain(getpid(), chain, MIN(CACHE_SIZE, 1024));
 
     get_shell(chain, cnt, shell, sizeof(shell));
     get_term(chain, cnt, term, sizeof(term));
@@ -693,5 +741,7 @@ int main(int argc, char **argv)
     get_os(os, sizeof(os));
 
     display(user, host, os, info.release, shell, wm, term);
+    
+    free(chain);
     return 0;
 }
