@@ -19,15 +19,15 @@
 #define PATH_MAX 4096
 #endif
 
-#define ARRAY_LEN(a)     (sizeof(a)/sizeof((a)[0]))
+#define VERSION          "v1.5"
 #define CACHE_SIZE       1024
 #define MAX_CHAIN        1000
 #define MAX_LINE         64
 #define MAX_NAME         128
 #define MAX_SMALL        64
 #define PID_MAX          4194304
-#define VERSION          "v1.4"
 #define WM_SCAN_TIMEOUT  1
+#define ARRAY_LEN(a)     (sizeof(a)/sizeof((a)[0]))
 #define MIN(a,b)         ((a) < (b) ? (a) : (b))
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
@@ -689,8 +689,8 @@ static void display(const char *user, const char *host, const char *os,
            COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, rel_clean);
     printf("%s ( %s/  \\ %s/|%s   %sShell:%s %s\n",
            COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, shell);
-    printf("%s%s_/%s\\ %s__)%s/%s_%s)%s   %sWM:%s %s\n",
-           COLOR_1, COLOR_3, COLOR_1, COLOR_2, COLOR_1, COLOR_3, COLOR_1, COLOR_RESET,
+    printf("%s_%s/\\ %s__)%s/%s_%s)%s   %sWM:%s %s\n",
+           COLOR_3, COLOR_1, COLOR_2, COLOR_1, COLOR_3, COLOR_1, COLOR_RESET,
            COLOR_3, COLOR_RESET, wm);
     printf("%s%s\\/%s-____%s\\/%s    %sTerminal:%s %s\n\n",
            COLOR_1, COLOR_3, COLOR_1, COLOR_3, COLOR_RESET, COLOR_3, COLOR_RESET, term);
