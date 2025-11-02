@@ -19,14 +19,14 @@
 #endif
 
 #define ARRAY_LEN(a)     (sizeof(a)/sizeof((a)[0]))
-#define CACHE_SIZE       512
+#define CACHE_SIZE       1024
 #define MAX_CHAIN        1000
 #define MAX_LINE         64
 #define MAX_NAME         128
 #define MAX_SMALL        64
 #define PID_MAX          4194304
-#define VERSION          "v1.2"
-#define WM_SCAN_TIMEOUT  2
+#define VERSION          "v1.3"
+#define WM_SCAN_TIMEOUT  1
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 _Static_assert(CACHE_SIZE <= PID_MAX, "cache bigger than pid space");
@@ -47,21 +47,37 @@ static proc_t cache[CACHE_SIZE];
 static size_t cache_cnt = 0;
 static char wm_cached[MAX_SMALL] = {0};
 static int wm_found = 0;
+static char os_cached[MAX_NAME] = {0};
+static int os_found = 0;
+static char host_cached[MAX_SMALL] = {0};
+static int host_found = 0;
 
 static const struct {
     const char *name;
     size_t len;
 } g_shells[] = {
     {"bash", 4},
-    {"csh", 3},
-    {"dash", 4},
-    {"elvish", 6},
-    {"fish", 4},
-    {"ksh", 3},
-    {"sh", 2},
-    {"tcsh", 4},
-    {"yash", 4},
     {"zsh", 3},
+    {"fish", 4},
+    {"dash", 4},
+    {"sh", 2},
+    {"ksh", 3},
+    {"tcsh", 4},
+    {"csh", 3},
+    {"elvish", 6},
+    {"nushell", 7},
+    {"xonsh", 5},
+    {"ion", 3},
+    {"oil", 3},
+    {"murex", 5},
+    {"powershell", 10},
+    {"pwsh", 4},
+    {"rc", 2},
+    {"es", 2},
+    {"yash", 4},
+    {"mksh", 4},
+    {"oksh", 4},
+    {"pdksh", 5},
 };
 
 static const struct {
@@ -69,111 +85,125 @@ static const struct {
     size_t len;
 } g_terms[] = {
     {"alacritty", 9},
-    {"aterm", 5},
-    {"contour", 7},
-    {"cool-retro-term", 15},
-    {"eterm", 5},
-    {"evilvte", 7},
-    {"fbterm", 6},
+    {"kitty", 5},
+    {"wezterm", 7},
+    {"gnome-terminal", 14},
+    {"konsole", 7},
+    {"xfce4-terminal", 14},
     {"foot", 4},
     {"ghostty", 7},
-    {"gnome-terminal", 14},
+    {"terminator", 10},
+    {"xterm", 5},
+    {"urxvt", 5},
+    {"st", 2},
+    {"tilix", 5},
     {"guake", 5},
-    {"hyper", 5},
-    {"kitty", 5},
-    {"konsole", 7},
-    {"kterm", 5},
-    {"lilyterm", 8},
-    {"lxterminal", 10},
+    {"yakuake", 7},
+    {"terminology", 11},
     {"mate-terminal", 13},
+    {"lxterminal", 10},
+    {"sakura", 6},
+    {"tilda", 5},
+    {"termite", 7},
+    {"roxterm", 7},
+    {"hyper", 5},
+    {"tabby", 5},
+    {"rio", 3},
+    {"contour", 7},
+    {"ptyxis", 6},
+    {"cosmic-term", 11},
+    {"warp", 4},
+    {"wave", 4},
+    {"extraterm", 9},
+    {"zutty", 5},
+    {"cool-retro-term", 15},
     {"mlterm", 6},
+    {"aterm", 5},
+    {"eterm", 5},
+    {"kterm", 5},
+    {"qterminal", 9},
+    {"lilyterm", 8},
+    {"evilvte", 7},
     {"mrxvt", 5},
+    {"fbterm", 6},
     {"nxterm", 6},
     {"pterm", 5},
-    {"qterminal", 9},
-    {"rio", 3},
-    {"roxterm", 7},
-    {"sakura", 6},
-    {"st", 2},
-    {"tabby", 5},
-    {"terminator", 10},
     {"termine", 7},
-    {"terminology", 11},
-    {"tilix", 5},
-    {"tilda", 5},
-    {"urxvt", 5},
-    {"wezterm", 7},
     {"wterm", 5},
-    {"xfce4-terminal", 14},
-    {"xterm", 5},
     {"xvt", 3},
     {"yaft", 4},
-    {"yakuake", 7},
-    {"ptyxis", 6},
 };
 
 static const struct {
     const char *name;
     size_t len;
 } g_wms[] = {
-    {"acme", 4},
-    {"afterstep", 9},
-    {"awesome", 7},
-    {"berry", 5},
+    {"hyprland", 8},
+    {"sway", 4},
+    {"kwin", 4},
+    {"mutter", 6},
+    {"openbox", 7},
+    {"i3", 2},
     {"bspwm", 5},
+    {"awesome", 7},
+    {"dwm", 3},
+    {"xmonad", 6},
+    {"muffin", 6},
+    {"marco", 5},
+    {"wayfire", 7},
+    {"river", 5},
+    {"labwc", 5},
+    {"niri", 4},
+    {"xfwm4", 5},
+    {"fluxbox", 7},
+    {"icewm", 5},
+    {"jwm", 3},
+    {"gnome-shell", 11},
+    {"cinnamon", 8},
+    {"mate-session", 12},
+    {"enlightenment", 13},
+    {"qtile", 5},
+    {"leftwm", 6},
+    {"herbstluftwm", 12},
+    {"spectrwm", 8},
+    {"ratpoison", 9},
+    {"stumpwm", 7},
+    {"sawfish", 7},
+    {"fvwm", 4},
+    {"fvwm3", 5},
+    {"fvwm-crystal", 12},
+    {"pekwm", 5},
+    {"windowmaker", 11},
+    {"afterstep", 9},
+    {"blackbox", 8},
+    {"wmaker", 6},
+    {"cwm", 3},
+    {"2bwm", 4},
+    {"berry", 5},
     {"cage", 4},
     {"catwm", 5},
-    {"cinnamon", 8},
     {"compiz", 6},
     {"ctwm", 4},
     {"dminiwm", 7},
-    {"dwm", 3},
     {"echinus", 7},
-    {"enlightenment", 13},
     {"evilwm", 6},
-    {"fluxbox", 7},
     {"frankenwm", 9},
-    {"fvwm", 4},
-    {"fvwm-crystal", 12},
-    {"gnome-shell", 11},
     {"goomwwm", 7},
-    {"herbstluftwm", 12},
-    {"hyprland", 8},
-    {"icewm", 5},
     {"ion", 3},
-    {"jwm", 3},
-    {"kwin", 4},
-    {"labwc", 5},
-    {"leftwm", 6},
     {"lfwm", 4},
-    {"marco", 5},
-    {"mate-session", 12},
     {"metacity", 8},
-    {"muffin", 6},
-    {"mutter", 6},
-    {"niri", 4},
     {"notion", 6},
     {"olivetti", 8},
-    {"openbox", 7},
-    {"pekwm", 5},
     {"plwm", 4},
-    {"ratpoison", 9},
-    {"river", 5},
-    {"sawfish", 7},
     {"snapwm", 6},
-    {"spectrwm", 8},
-    {"stumpwm", 7},
-    {"sway", 4},
     {"tinywm", 6},
     {"trayer", 6},
     {"twm", 3},
     {"vwm", 3},
     {"waimea", 6},
-    {"wayfire", 7},
     {"wmii", 4},
     {"wmx", 3},
-    {"xfwm4", 5},
-    {"xmonad", 6},
+    {"acme", 4},
 };
 
 __attribute__((nonnull, access(write_only, 1), access(read_only, 2)))
@@ -357,11 +387,19 @@ static void get_user(char *buf, size_t sz)
 __attribute__((nonnull, access(write_only, 1)))
 static void get_host(char *buf, size_t sz)
 {
-    if (gethostname(buf, sz) != 0) {
-        str_copy(buf, "localhost", sz);
+    if (host_found) {
+        str_copy(buf, host_cached, sz);
         return;
     }
-    buf[sz - 1] = '\0';
+    
+    if (gethostname(buf, sz) != 0) {
+        str_copy(buf, "localhost", sz);
+    } else {
+        buf[sz - 1] = '\0';
+    }
+    
+    str_copy(host_cached, buf, sizeof(host_cached));
+    host_found = 1;
 }
 
 __attribute__((nonnull))
@@ -422,6 +460,14 @@ static int read_comm(const char *pid_str, char *comm, size_t sz)
     return 0;
 }
 
+static int likely_wm_pid(const char *name)
+{
+    unsigned long pid = strtoul(name, NULL, 10);
+    if (pid < 300) return 0;
+    if (pid > 100000) return 0;
+    return 1;
+}
+
 __attribute__((nonnull, access(write_only, 1)))
 static void get_wm(char *buf, size_t sz)
 {
@@ -433,6 +479,8 @@ static void get_wm(char *buf, size_t sz)
     DIR *proc = opendir("/proc");
     if (!proc) {
         str_copy(buf, "unknown", sz);
+        str_copy(wm_cached, "unknown", sizeof(wm_cached));
+        wm_found = 1;
         return;
     }
 
@@ -443,6 +491,7 @@ static void get_wm(char *buf, size_t sz)
     while ((ent = readdir(proc))) {
         if (time(NULL) - start_time >= WM_SCAN_TIMEOUT) break;
         if (ent->d_name[0] < '0' || ent->d_name[0] > '9') continue;
+        if (!likely_wm_pid(ent->d_name)) continue;
         if (read_comm(ent->d_name, comm, sizeof(comm)) != 0) continue;
         if (comm[0] == '\0') continue;
 
@@ -478,9 +527,16 @@ static void get_wm(char *buf, size_t sz)
 __attribute__((nonnull, access(write_only, 1)))
 static void get_os(char *buf, size_t sz)
 {
+    if (os_found) {
+        str_copy(buf, os_cached, sz);
+        return;
+    }
+    
     FILE *f = fopen("/etc/os-release", "r");
     if (!f) {
         str_copy(buf, "Linux", sz);
+        str_copy(os_cached, "Linux", sizeof(os_cached));
+        os_found = 1;
         return;
     }
 
@@ -519,12 +575,16 @@ static void get_os(char *buf, size_t sz)
 
     if (found_pretty) {
         str_copy(buf, pretty_name, sz);
+        str_copy(os_cached, pretty_name, sizeof(os_cached));
     } else if (found_name) {
         str_copy(buf, name_buf, sz);
+        str_copy(os_cached, name_buf, sizeof(os_cached));
     } else {
         str_copy(buf, "Linux", sz);
+        str_copy(os_cached, "Linux", sizeof(os_cached));
     }
-
+    
+    os_found = 1;
     fclose(f);
 }
 
