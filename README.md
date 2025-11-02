@@ -24,13 +24,16 @@ While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, z
 <sub>*_Performance varies by hardware and system configuration. See [benchmarks](#benchmarks) for details._</sub>
 
 ## ✨ Features
-| **Performance**                                          | **Design**                                             |
-| -------------------------------------------------------- | ------------------------------------------------------ |
-| ⚡ **~1.2 ms runtime*** – up to 350× faster than neofetch | 🎨 **Customizable colors** via a simple `config.h`     |
-| 📦 **28 KB binary*** – minimal disk footprint            | 🐧 **Pure C implementation** – no shell scripts        |
-| 🔒 **Safe caching** – optimized process chain            | 🔧 **Direct /proc parsing** – no `ps` or `popen` calls |
-| 💾 **Zero dependencies** – supports static linking       | ✅ **Production ready** – tested and reliable           |
-<sub>*Results may vary depending on hardware. See test system specs below.*</sub>
+
+**Fast & Lightweight**
+- ⚡ Runs in ~1.2 ms (350× faster than neofetch)
+- 📦 Only 28 KB in size
+- 💾 No dependencies needed
+
+**Customizable & Reliable**
+- 🎨 Easy color customization via `config.h`
+- 🐧 Written in pure C
+- ✅ Production ready and tested
 
 ## 📊 Benchmarks
 Tested with [hyperfine](https://github.com/sharkdp/hyperfine) on the following system:
