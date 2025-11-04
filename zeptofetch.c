@@ -116,6 +116,7 @@ static const struct {
     {"snapwm", 6},        {"tinywm", 6},         {"trayer", 6},
     {"twm", 3},           {"vwm", 3},            {"waimea", 6},
     {"wmii", 4},          {"wmx", 3},            {"acme", 4},
+    {"Hyprland", 8}
 };
 
 __attribute__((nonnull, access(write_only, 1), access(read_only, 2))) static void
