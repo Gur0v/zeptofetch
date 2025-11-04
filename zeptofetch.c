@@ -19,7 +19,7 @@
 #define PATH_MAX 4096
 #endif
 
-#define VERSION "v1.5"
+#define VERSION "v1.6"
 #define CACHE_SIZE 1024
 #define MAX_CHAIN 1000
 #define MAX_LINE 64
@@ -58,13 +58,27 @@ static const struct {
     const char *name;
     size_t len;
 } g_shells[] = {
-    {"bash", 4},       {"zsh", 3},        {"fish", 4},
-    {"dash", 4},       {"sh", 2},         {"ksh", 3},
-    {"tcsh", 4},       {"csh", 3},        {"elvish", 6},
-    {"nushell", 7},    {"xonsh", 5},      {"ion", 3},
-    {"oil", 3},        {"murex", 5},      {"powershell", 10},
-    {"pwsh", 4},       {"rc", 2},         {"es", 2},
-    {"yash", 4},       {"mksh", 4},       {"oksh", 4},
+    {"bash", 4},
+    {"zsh", 3},
+    {"fish", 4},
+    {"dash", 4},
+    {"sh", 2},
+    {"ksh", 3},
+    {"tcsh", 4},
+    {"csh", 3},
+    {"elvish", 6},
+    {"nushell", 7},
+    {"xonsh", 5},
+    {"ion", 3},
+    {"oil", 3},
+    {"murex", 5},
+    {"powershell", 10},
+    {"pwsh", 4},
+    {"rc", 2},
+    {"es", 2},
+    {"yash", 4},
+    {"mksh", 4},
+    {"oksh", 4},
     {"pdksh", 5},
 };
 
@@ -72,53 +86,130 @@ static const struct {
     const char *name;
     size_t len;
 } g_terms[] = {
-    {"alacritty", 9},       {"kitty", 5},           {"wezterm", 7},
-    {"gnome-terminal", 14}, {"konsole", 7},         {"xfce4-terminal", 14},
-    {"foot", 4},            {"ghostty", 7},         {"terminator", 10},
-    {"xterm", 5},           {"urxvt", 5},           {"st", 2},
-    {"tilix", 5},           {"guake", 5},           {"yakuake", 7},
-    {"terminology", 11},    {"mate-terminal", 13},  {"lxterminal", 10},
-    {"sakura", 6},          {"tilda", 5},           {"termite", 7},
-    {"roxterm", 7},         {"hyper", 5},           {"tabby", 5},
-    {"rio", 3},             {"contour", 7},         {"ptyxis", 6},
-    {"cosmic-term", 11},    {"warp", 4},            {"wave", 4},
-    {"extraterm", 9},       {"zutty", 5},           {"cool-retro-term", 15},
-    {"mlterm", 6},          {"aterm", 5},           {"eterm", 5},
-    {"kterm", 5},           {"qterminal", 9},       {"lilyterm", 8},
-    {"evilvte", 7},         {"mrxvt", 5},           {"fbterm", 6},
-    {"nxterm", 6},          {"pterm", 5},           {"termine", 7},
-    {"wterm", 5},           {"xvt", 3},             {"yaft", 4},
+    {"alacritty", 9},
+    {"kitty", 5},
+    {"wezterm", 7},
+    {"gnome-terminal", 14},
+    {"konsole", 7},
+    {"xfce4-terminal", 14},
+    {"foot", 4},
+    {"ghostty", 7},
+    {"terminator", 10},
+    {"xterm", 5},
+    {"urxvt", 5},
+    {"st", 2},
+    {"tilix", 5},
+    {"guake", 5},
+    {"yakuake", 7},
+    {"terminology", 11},
+    {"mate-terminal", 13},
+    {"lxterminal", 10},
+    {"sakura", 6},
+    {"tilda", 5},
+    {"termite", 7},
+    {"roxterm", 7},
+    {"hyper", 5},
+    {"tabby", 5},
+    {"rio", 3},
+    {"contour", 7},
+    {"ptyxis", 6},
+    {"cosmic-term", 11},
+    {"warp", 4},
+    {"wave", 4},
+    {"extraterm", 9},
+    {"zutty", 5},
+    {"cool-retro-term", 15},
+    {"mlterm", 6},
+    {"aterm", 5},
+    {"eterm", 5},
+    {"kterm", 5},
+    {"qterminal", 9},
+    {"lilyterm", 8},
+    {"evilvte", 7},
+    {"mrxvt", 5},
+    {"fbterm", 6},
+    {"nxterm", 6},
+    {"pterm", 5},
+    {"termine", 7},
+    {"wterm", 5},
+    {"xvt", 3},
+    {"yaft", 4},
 };
 
 static const struct {
     const char *name;
     size_t len;
 } g_wms[] = {
-    {"hyprland", 8},      {"sway", 4},           {"kwin", 4},
-    {"mutter", 6},        {"openbox", 7},        {"i3", 2},
-    {"bspwm", 5},         {"awesome", 7},        {"dwm", 3},
-    {"xmonad", 6},        {"muffin", 6},         {"marco", 5},
-    {"wayfire", 7},       {"river", 5},          {"labwc", 5},
-    {"niri", 4},          {"xfwm4", 5},          {"fluxbox", 7},
-    {"icewm", 5},         {"jwm", 3},            {"gnome-shell", 11},
-    {"cinnamon", 8},      {"mate-session", 12},  {"enlightenment", 13},
-    {"qtile", 5},         {"leftwm", 6},         {"herbstluftwm", 12},
-    {"spectrwm", 8},      {"ratpoison", 9},      {"stumpwm", 7},
-    {"sawfish", 7},       {"fvwm", 4},           {"fvwm3", 5},
-    {"fvwm-crystal", 12}, {"pekwm", 5},          {"windowmaker", 11},
-    {"afterstep", 9},     {"blackbox", 8},       {"wmaker", 6},
-    {"cwm", 3},           {"2bwm", 4},           {"berry", 5},
-    {"cage", 4},          {"catwm", 5},          {"compiz", 6},
-    {"ctwm", 4},          {"dminiwm", 7},        {"echinus", 7},
-    {"evilwm", 6},        {"frankenwm", 9},      {"goomwwm", 7},
-    {"ion", 3},           {"lfwm", 4},           {"metacity", 8},
-    {"notion", 6},        {"olivetti", 8},       {"plwm", 4},
-    {"snapwm", 6},        {"tinywm", 6},         {"trayer", 6},
-    {"twm", 3},           {"vwm", 3},            {"waimea", 6},
-    {"wmii", 4},          {"wmx", 3},            {"acme", 4},
+    {"Hyprland", 8},
+    {"sway", 4},
+    {"kwin", 4},
+    {"mutter", 6},
+    {"openbox", 7},
+    {"i3", 2},
+    {"bspwm", 5},
+    {"awesome", 7},
+    {"dwm", 3},
+    {"xmonad", 6},
+    {"muffin", 6},
+    {"marco", 5},
+    {"wayfire", 7},
+    {"river", 5},
+    {"labwc", 5},
+    {"niri", 4},
+    {"xfwm4", 5},
+    {"fluxbox", 7},
+    {"icewm", 5},
+    {"jwm", 3},
+    {"gnome-shell", 11},
+    {"cinnamon", 8},
+    {"mate-session", 12},
+    {"enlightenment", 13},
+    {"qtile", 5},
+    {"leftwm", 6},
+    {"herbstluftwm", 12},
+    {"spectrwm", 8},
+    {"ratpoison", 9},
+    {"stumpwm", 7},
+    {"sawfish", 7},
+    {"fvwm", 4},
+    {"fvwm3", 5},
+    {"fvwm-crystal", 12},
+    {"pekwm", 5},
+    {"windowmaker", 11},
+    {"afterstep", 9},
+    {"blackbox", 8},
+    {"wmaker", 6},
+    {"cwm", 3},
+    {"2bwm", 4},
+    {"berry", 5},
+    {"cage", 4},
+    {"catwm", 5},
+    {"compiz", 6},
+    {"ctwm", 4},
+    {"dminiwm", 7},
+    {"echinus", 7},
+    {"evilwm", 6},
+    {"frankenwm", 9},
+    {"goomwwm", 7},
+    {"ion", 3},
+    {"lfwm", 4},
+    {"metacity", 8},
+    {"notion", 6},
+    {"olivetti", 8},
+    {"plwm", 4},
+    {"snapwm", 6},
+    {"tinywm", 6},
+    {"trayer", 6},
+    {"twm", 3},
+    {"vwm", 3},
+    {"waimea", 6},
+    {"wmii", 4},
+    {"wmx", 3},
+    {"acme", 4},
 };
 
-__attribute__((nonnull, access(write_only, 1), access(read_only, 2))) static void
+__attribute__((nonnull, access(write_only, 1), access(read_only, 2)))
+static void
 str_copy(char *dst, const char *src, size_t sz)
 {
     if (sz == 0)
@@ -183,7 +274,8 @@ cache_add(pid_t pid)
     return &cache[idx];
 }
 
-__attribute__((warn_unused_result)) static int
+__attribute__((warn_unused_result))
+static int
 read_ppid(pid_t pid, pid_t *out)
 {
     char path[PATH_MAX];
@@ -200,7 +292,8 @@ read_ppid(pid_t pid, pid_t *out)
     return (ok == 1) ? 0 : -1;
 }
 
-__attribute__((warn_unused_result, nonnull, access(write_only, 2))) static int
+__attribute__((warn_unused_result, nonnull, access(write_only, 2)))
+static int
 read_exe(pid_t pid, char *buf, size_t sz)
 {
     char path[PATH_MAX];
@@ -228,8 +321,10 @@ read_exe(pid_t pid, char *buf, size_t sz)
             return -1;
         }
 
-        if (strncmp(resolved, "/usr", 4) != 0 && strncmp(resolved, "/bin", 4) != 0 &&
-            strncmp(resolved, "/opt", 4) != 0 && strncmp(resolved, "/home", 5) != 0) {
+        if (strncmp(resolved, "/usr", 4) != 0 &&
+            strncmp(resolved, "/bin", 4) != 0 &&
+            strncmp(resolved, "/opt", 4) != 0 &&
+            strncmp(resolved, "/home", 5) != 0) {
             free(resolved);
             return -1;
         }
@@ -243,7 +338,8 @@ read_exe(pid_t pid, char *buf, size_t sz)
     return 0;
 }
 
-__attribute__((warn_unused_result, nonnull)) static int
+__attribute__((warn_unused_result, nonnull))
+static int
 get_proc(pid_t pid, proc_t *p)
 {
     if (!valid_pid(pid))
@@ -280,7 +376,8 @@ get_proc(pid_t pid, proc_t *p)
     return 0;
 }
 
-__attribute__((nonnull)) static size_t
+__attribute__((nonnull))
+static size_t
 build_chain(pid_t start, proc_t *out, size_t max)
 {
     size_t idx = 0;
@@ -309,13 +406,15 @@ build_chain(pid_t start, proc_t *out, size_t max)
     return idx;
 }
 
-__attribute__((nonnull)) static int
+__attribute__((nonnull))
+static int
 str_eq(const char *a, const char *b)
 {
     return strcmp(a, b) == 0;
 }
 
-__attribute__((nonnull)) static int
+__attribute__((nonnull))
+static int
 str_prefix(const char *s, const char *pre, size_t pre_len)
 {
     return strncmp(s, pre, pre_len) == 0;
@@ -337,21 +436,24 @@ is_shell(const char *n)
     return 0;
 }
 
-__attribute__((nonnull, access(read_only, 1), access(write_only, 2))) static void
+__attribute__((nonnull, access(read_only, 1), access(write_only, 2)))
+static void
 basename_of(const char *path, char *out, size_t sz)
 {
     const char *b = strrchr(path, '/');
     str_copy(out, b ? b + 1 : path, sz);
 }
 
-__attribute__((nonnull, access(write_only, 1))) static void
+__attribute__((nonnull, access(write_only, 1)))
+static void
 get_user(char *buf, size_t sz)
 {
     struct passwd *pw = getpwuid(getuid());
     str_copy(buf, (pw && pw->pw_name) ? pw->pw_name : "user", sz);
 }
 
-__attribute__((nonnull, access(write_only, 1))) static void
+__attribute__((nonnull, access(write_only, 1)))
+static void
 get_host(char *buf, size_t sz)
 {
     if (host_found) {
@@ -369,7 +471,8 @@ get_host(char *buf, size_t sz)
     host_found = 1;
 }
 
-__attribute__((nonnull)) static void
+__attribute__((nonnull))
+static void
 get_shell(proc_t *chain, size_t cnt, char *buf, size_t sz)
 {
     char base[MAX_NAME];
@@ -385,7 +488,8 @@ get_shell(proc_t *chain, size_t cnt, char *buf, size_t sz)
     str_copy(buf, "unknown", sz);
 }
 
-__attribute__((nonnull)) static void
+__attribute__((nonnull))
+static void
 get_term(proc_t *chain, size_t cnt, char *buf, size_t sz)
 {
     char base[MAX_NAME];
@@ -416,8 +520,8 @@ get_term(proc_t *chain, size_t cnt, char *buf, size_t sz)
     str_copy(buf, "unknown", sz);
 }
 
-__attribute__((warn_unused_result, cold, nonnull, access(read_only, 1),
-              access(write_only, 2))) static int
+__attribute__((warn_unused_result, cold, nonnull, access(read_only, 1), access(write_only, 2)))
+static int
 read_comm(const char *pid_str, char *comm, size_t sz)
 {
     char path[PATH_MAX];
@@ -453,7 +557,8 @@ likely_wm_pid(const char *name)
     return 1;
 }
 
-__attribute__((nonnull, access(write_only, 1))) static void
+__attribute__((nonnull, access(write_only, 1)))
+static void
 get_wm(char *buf, size_t sz)
 {
     if (wm_found) {
@@ -494,17 +599,7 @@ get_wm(char *buf, size_t sz)
                 continue;
             if (str_eq(comm, g_wms[i].name) ||
                 str_prefix(comm, g_wms[i].name, g_wms[i].len)) {
-                if (str_eq(comm, "gnome-shell")) {
-                    str_copy(buf, "mutter", sz);
-                } else if (str_eq(comm, "cinnamon")) {
-                    str_copy(buf, "muffin", sz);
-                } else if (str_eq(comm, "mate-session")) {
-                    str_copy(buf, "marco", sz);
-                } else if (str_prefix(comm, "kwin", 4)) {
-                    str_copy(buf, "kwin", sz);
-                } else {
-                    str_copy(buf, g_wms[i].name, sz);
-                }
+                str_copy(buf, g_wms[i].name, sz);
                 str_copy(wm_cached, buf, sizeof(wm_cached));
                 wm_found = 1;
                 closedir(proc);
@@ -519,7 +614,8 @@ get_wm(char *buf, size_t sz)
     wm_found = 1;
 }
 
-__attribute__((nonnull, access(write_only, 1))) static void
+__attribute__((nonnull, access(write_only, 1)))
+static void
 get_os(char *buf, size_t sz)
 {
     if (os_found) {
@@ -631,11 +727,12 @@ print_version(void)
     printf("unknown\n");
 #endif
 
-    printf("CONFIG: CACHE=%d CHAIN=%d PATH=%d PID=%d TIMEOUT=%ds\n", CACHE_SIZE,
-           MAX_CHAIN, PATH_MAX, PID_MAX, WM_SCAN_TIMEOUT);
+    printf("CONFIG: CACHE=%d CHAIN=%d PATH=%d PID=%d TIMEOUT=%ds\n",
+           CACHE_SIZE, MAX_CHAIN, PATH_MAX, PID_MAX, WM_SCAN_TIMEOUT);
 }
 
-__attribute__((nonnull, access(write_only, 1), access(read_only, 3))) static void
+__attribute__((nonnull, access(write_only, 1), access(read_only, 3)))
+static void
 sanitise_release(char *dst, size_t sz, const char *src)
 {
     size_t i = 0;
@@ -646,7 +743,8 @@ sanitise_release(char *dst, size_t sz, const char *src)
     dst[i] = '\0';
 }
 
-__attribute__((nonnull)) static void
+__attribute__((nonnull))
+static void
 display(const char *user, const char *host, const char *os, const char *kern,
         const char *shell, const char *wm, const char *term)
 {
@@ -657,20 +755,23 @@ display(const char *user, const char *host, const char *os, const char *kern,
     int n = snprintf(tmp, sizeof(tmp), "%s@%s", user, host);
     size_t len = (n > 0 && (size_t)n < sizeof(tmp)) ? (size_t)n : 0;
 
-    printf("%s    ___ %s     %s%s@%s%s\n", COLOR_1, COLOR_RESET, COLOR_1, user, host,
-           COLOR_RESET);
+    printf("%s    ___ %s     %s%s@%s%s\n",
+           COLOR_1, COLOR_RESET, COLOR_1, user, host, COLOR_RESET);
     printf("%s   (%s.· %s|%s     ", COLOR_1, COLOR_2, COLOR_1, COLOR_RESET);
     print_sep(len);
-    printf("%s   (%s<>%s %s|%s     %sOS:%s %s\n", COLOR_1, COLOR_3, COLOR_RESET,
-           COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, os);
-    printf("%s  / %s__  %s\\%s    %sKernel:%s %s\n", COLOR_1, COLOR_2, COLOR_1,
-           COLOR_RESET, COLOR_3, COLOR_RESET, rel_clean);
-    printf("%s ( %s/  \\ %s/|%s   %sShell:%s %s\n", COLOR_1, COLOR_2, COLOR_1,
-           COLOR_RESET, COLOR_3, COLOR_RESET, shell);
-    printf("%s_%s/\\ %s__)%s/%s_%s)%s   %sWM:%s %s\n", COLOR_3, COLOR_1, COLOR_2, COLOR_1,
-           COLOR_3, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, wm);
-    printf("%s%s\\/%s-____%s\\/%s    %sTerminal:%s %s\n\n", COLOR_1, COLOR_3, COLOR_1,
-           COLOR_3, COLOR_RESET, COLOR_3, COLOR_RESET, term);
+    printf("%s   (%s<>%s %s|%s     %sOS:%s %s\n",
+           COLOR_1, COLOR_3, COLOR_RESET, COLOR_1, COLOR_RESET,
+           COLOR_3, COLOR_RESET, os);
+    printf("%s  / %s__  %s\\%s    %sKernel:%s %s\n",
+           COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, rel_clean);
+    printf("%s ( %s/  \\ %s/|%s   %sShell:%s %s\n",
+           COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET, shell);
+    printf("%s_%s/\\ %s__)%s/%s_%s)%s   %sWM:%s %s\n",
+           COLOR_3, COLOR_1, COLOR_2, COLOR_1, COLOR_3, COLOR_1, COLOR_RESET,
+           COLOR_3, COLOR_RESET, wm);
+    printf("%s%s\\/%s-____%s\\/%s    %sTerminal:%s %s\n\n",
+           COLOR_1, COLOR_3, COLOR_1, COLOR_3, COLOR_RESET,
+           COLOR_3, COLOR_RESET, term);
 }
 
 int
