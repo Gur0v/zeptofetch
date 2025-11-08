@@ -18,15 +18,13 @@
 </div>
 
 ## 🎯 Why zeptofetch?
-`zeptofetch` delivers system information in **under 2ms*** with a **28KB binary***. No scripts, no bloat, just pure C doing exactly what you need.
-While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, zeptofetch gives you information 350x faster* with a fraction of the size.
-
+`zeptofetch` delivers system information in **under 1ms*** with a **28KB binary***. No scripts, no bloat, just pure C doing exactly what you need.
+While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, zeptofetch gives you information 445x faster* with a fraction of the size.
 <sub>*_Performance varies by hardware and system configuration. See [benchmarks](#benchmarks) for details._</sub>
 
 ## ✨ Features
-
 **Fast & Lightweight**
-- ⚡ Runs in ~1.2 ms (350× faster than neofetch)
+- ⚡ Runs in ~0.9 ms (445× faster than neofetch)
 - 📦 Only 28 KB in size
 - 💾 No dependencies needed
 
@@ -47,10 +45,11 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine) on the following s
 | **GPU** | AMD Radeon RX 7600 |
 | **RAM** | 32 GB DDR4 @ 3200MHz |
 | **Storage** | 931.51 GB SSD |
-| **Kernel** | 6.17.6-1-cachyos-bore-lto |
+| **Kernel** | 6.17.7-lqx1-1-lqx |
 | **OS** | Arch Linux |
-| **Desktop** | KDE Plasma 6.5.1 (Wayland) |
+| **Desktop** | KDE Plasma 6.5.2 (Wayland) |
 | **Motherboard** | MSI B550-A PRO (MS-7C56) |
+
 </details>
 
 <table>
@@ -65,27 +64,21 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine) on the following s
 <tbody>
 <tr>
 <td><strong>zeptofetch</strong></td>
-<td><strong>1.2ms ± 0.1ms</strong></td>
+<td><strong>0.9ms ± 0.05ms</strong></td>
 <td><strong>28 KB</strong></td>
-<td><code>354x faster</code></td>
+<td><code>445x faster</code></td>
 </tr>
 <tr>
 <td>fastfetch</td>
-<td>4.8ms ± 0.2ms</td>
+<td>3.6ms ± 0.2ms</td>
 <td>~200 KB</td>
-<td><code>90x faster</code></td>
+<td><code>112x faster</code></td>
 </tr>
 <tr>
 <td>neofetch</td>
-<td>429.8ms ± 3.1ms</td>
+<td>402.0ms ± 1.7ms</td>
 <td>~50 KB</td>
 <td><em>baseline</em></td>
-</tr>
-<tr>
-<td>screenfetch</td>
-<td>939.7ms ± 8.9ms</td>
-<td>~100 KB</td>
-<td><code>2.2x slower</code></td>
 </tr>
 </tbody>
 </table>
