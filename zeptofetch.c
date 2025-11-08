@@ -19,7 +19,7 @@
 #define PATH_MAX 4096
 #endif
 
-#define VERSION "v1.6"
+#define VERSION "v1.7-rc1"
 #define CACHE_SIZE 1024
 #define MAX_CHAIN 1000
 #define MAX_LINE 64
@@ -321,17 +321,17 @@ read_exe(pid_t pid, char *buf, size_t sz)
             return -1;
         }
 
-        if (strncmp(resolved, "/usr", 4) != 0 &&
-            strncmp(resolved, "/bin", 4) != 0 &&
-            strncmp(resolved, "/opt", 4) != 0 &&
-            strncmp(resolved, "/home", 5) != 0) {
+        if (strncmp(resolved, "/usr", 4) == 0 ||
+            strncmp(resolved, "/bin", 4) == 0 ||
+            strncmp(resolved, "/opt", 4) == 0 ||
+            strncmp(resolved, "/home", 5) == 0) {
+            str_copy(buf, resolved, sz);
             free(resolved);
-            return -1;
+            return 0;
         }
 
-        str_copy(buf, resolved, sz);
         free(resolved);
-        return 0;
+        return -1;
     }
 
     str_copy(buf, temp, sz);
@@ -809,12 +809,9 @@ main(int argc, char **argv)
     get_user(user, sizeof(user));
     get_host(host, sizeof(host));
 
-    proc_t *chain = malloc(MIN(CACHE_SIZE, 1024) * sizeof(*chain));
-    if (!chain)
-        return 1;
-
+    proc_t chain[CACHE_SIZE];
     cache_cnt = 0;
-    size_t cnt = build_chain(getpid(), chain, MIN(CACHE_SIZE, 1024));
+    size_t cnt = build_chain(getpid(), chain, CACHE_SIZE);
 
     get_shell(chain, cnt, shell, sizeof(shell));
     get_term(chain, cnt, term, sizeof(term));
@@ -823,6 +820,5 @@ main(int argc, char **argv)
 
     display(user, host, os, info.release, shell, wm, term);
 
-    free(chain);
     return 0;
 }
