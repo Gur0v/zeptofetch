@@ -1,5 +1,3 @@
-#include <assert.h>
-#include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
 #include <limits.h>
@@ -14,14 +12,13 @@
 #include <sys/utsname.h>
 #include <time.h>
 #include <unistd.h>
-#include <pthread.h>
 #include "config.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
 #endif
 
-#define VERSION "v1.7"
+#define VERSION "v1.8"
 #define CACHE_SIZE 1024
 #define MAX_CHAIN 1000
 #define MAX_LINE 64
@@ -40,11 +37,12 @@ _Static_assert(CACHE_SIZE <= PID_MAX, "cache bigger than pid space");
 typedef char static_assert_cache_size[(CACHE_SIZE <= PID_MAX) ? 1 : -1];
 #endif
 
-typedef struct {
+typedef struct
+{
 	pid_t pid;
 	pid_t ppid;
 	char exe[PATH_MAX];
-	time_t cached_time;
+	time_t ct;
 	uint8_t flags;
 } proc_t;
 
@@ -169,7 +167,7 @@ cache_add(pid_t pid)
 	cache[idx].ppid = -1;
 	cache[idx].exe[0] = '\0';
 	cache[idx].flags = 0;
-	cache[idx].cached_time = time(NULL);
+	cache[idx].ct = time(NULL);
 	return &cache[idx];
 }
 
@@ -194,42 +192,42 @@ static int
 read_exe(pid_t pid, char *buf, size_t sz)
 {
 	char path[PATH_MAX];
-	char temp[PATH_MAX];
+	char tmp[PATH_MAX];
 	int n = snprintf(path, sizeof(path), "/proc/%d/exe", pid);
 	if (n < 0 || (size_t)n >= sizeof(path))
 		return -1;
 
-	ssize_t len = readlink(path, temp, sizeof(temp) - 1);
+	ssize_t len = readlink(path, tmp, sizeof(tmp) - 1);
 	if (len <= 0)
 		return -1;
-	temp[len] = '\0';
+	tmp[len] = '\0';
 
-	char *resolved = realpath(temp, NULL);
-	if (resolved) {
+	char *res = realpath(tmp, NULL);
+	if (res) {
 		struct stat st;
-		if (stat(resolved, &st) != 0) {
-			free(resolved);
+		if (stat(res, &st) != 0) {
+			free(res);
 			return -1;
 		}
 
 		if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode)) {
-			free(resolved);
+			free(res);
 			return -1;
 		}
 
-		if (strncmp(resolved, "/usr", 4) == 0 ||
-		    strncmp(resolved, "/bin", 4) == 0 ||
-		    strncmp(resolved, "/opt", 4) == 0 ||
-		    strncmp(resolved, "/home", 5) == 0) {
-			str_copy(buf, resolved, sz);
-			free(resolved);
+		if (strncmp(res, "/usr", 4) == 0 ||
+		    strncmp(res, "/bin", 4) == 0 ||
+		    strncmp(res, "/opt", 4) == 0 ||
+		    strncmp(res, "/home", 5) == 0) {
+			str_copy(buf, res, sz);
+			free(res);
 			return 0;
 		}
-		free(resolved);
+		free(res);
 		return -1;
 	}
 
-	str_copy(buf, temp, sz);
+	str_copy(buf, tmp, sz);
 	return 0;
 }
 
@@ -299,9 +297,9 @@ str_eq(const char *a, const char *b)
 }
 
 static inline int
-str_prefix(const char *s, const char *pre, size_t pre_len)
+str_prefix(const char *s, const char *pre, size_t plen)
 {
-	return strncmp(s, pre, pre_len) == 0;
+	return strncmp(s, pre, plen) == 0;
 }
 
 static int
@@ -452,10 +450,10 @@ get_wm(char *buf, size_t sz)
 	time_t start = time(NULL);
 	struct dirent *ent;
 	char comm[MAX_SMALL];
-	size_t dirent_cnt = 0;
+	size_t dcnt = 0;
 
 	while ((ent = readdir(proc))) {
-		if (++dirent_cnt > 50000)
+		if (++dcnt > 50000)
 			break;
 		if (time(NULL) - start >= WM_SCAN_TIMEOUT)
 			break;
@@ -590,7 +588,7 @@ print_version(void)
 }
 
 static void
-sanitise_release(char *dst, size_t sz, const char *src)
+sanitise_rel(char *dst, size_t sz, const char *src)
 {
 	size_t i = 0;
 	while (i < sz - 1 && src[i] != '\0' && src[i] != ' ') {
@@ -604,8 +602,8 @@ static void
 display(const char *user, const char *host, const char *os, const char *kern,
     const char *shell, const char *wm, const char *term)
 {
-	char rel_clean[64];
-	sanitise_release(rel_clean, sizeof(rel_clean), kern);
+	char rel[64];
+	sanitise_rel(rel, sizeof(rel), kern);
 
 	char tmp[256];
 	int n = snprintf(tmp, sizeof(tmp), "%s@%s", user, host);
@@ -621,7 +619,7 @@ display(const char *user, const char *host, const char *os, const char *kern,
 	    COLOR_3, COLOR_RESET, os);
 	printf("%s  / %s__  %s\\%s    %sKernel:%s %s\n",
 	    COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET,
-	    rel_clean);
+	    rel);
 	printf("%s ( %s/  \\ %s/|%s   %sShell:%s %s\n",
 	    COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET,
 	    shell);
