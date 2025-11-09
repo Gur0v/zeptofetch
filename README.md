@@ -19,12 +19,13 @@
 
 ## 🎯 Why zeptofetch?
 `zeptofetch` delivers system information in **under 1ms*** with a **28KB binary***. No scripts, no bloat, just pure C doing exactly what you need.
-While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, zeptofetch gives you information 445x faster* with a fraction of the size.
+While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, zeptofetch gives you information 480x faster* with a fraction of the size.
+
 <sub>*_Performance varies by hardware and system configuration. See [benchmarks](#benchmarks) for details._</sub>
 
 ## ✨ Features
 **Fast & Lightweight**
-- ⚡ Runs in ~0.9 ms (445× faster than neofetch)
+- ⚡ Runs in ~0.8 ms (445× faster than neofetch)
 - 📦 Only 28 KB in size
 - 💾 No dependencies needed
 
@@ -52,38 +53,13 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine) on the following s
 
 </details>
 
-<table>
-<thead>
-<tr>
-<th>Tool</th>
-<th>Runtime</th>
-<th>Binary Size</th>
-<th>Speed vs neofetch</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>zeptofetch</strong></td>
-<td><strong>0.9ms ± 0.05ms</strong></td>
-<td><strong>28 KB</strong></td>
-<td><code>445x faster</code></td>
-</tr>
-<tr>
-<td>fastfetch</td>
-<td>3.6ms ± 0.2ms</td>
-<td>~200 KB</td>
-<td><code>112x faster</code></td>
-</tr>
-<tr>
-<td>neofetch</td>
-<td>402.0ms ± 1.7ms</td>
-<td>~50 KB</td>
-<td><em>baseline</em></td>
-</tr>
-</tbody>
-</table>
+| Tool           | Runtime*            | Binary Size | Speed vs neofetch     |
+|----------------|---------------------|-------------|-----------------------|
+| **zeptofetch** | **0.80ms ± 0.09ms** | **28 KB**   | `480x faster`         |
+| fastfetch      | 3.6ms ± 0.4ms       | ~200 KB     | `107x faster`         |
+| neofetch       | 384.1ms ± 6.7ms     | ~50 KB      | *baseline*            |
 
-> **Note**: Performance is highly dependent on hardware, system load, and configuration. Manual compilation yields significantly better performance than prebuilt releases. Results may vary on your system.
+<sub>*_Runtime performance is highly dependent on hardware, system load, and configuration. The kernel, scheduler, desktop environment (DE), window manager (WM), and terminal emulator can all influence speed, leading to different results on your system. The benchmark results shown are from a prebuilt binary version v1.8. While prebuilt releases may sometimes offer competitive runtime speeds, it often feels like a 50/50 chance. Manual compilation is generally safer, yielding more consistent performance optimized for your specific configuration._</sub>
 
 ## 🚀 Installation
 
