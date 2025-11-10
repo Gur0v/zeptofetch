@@ -18,50 +18,52 @@
 #define PATH_MAX 4096
 #endif
 
-#define VERSION "v1.8"
-#define CACHE_SIZE 1024
+#define VERSION "v1.9"
+#define CACHE_SZ 1024
 #define MAX_CHAIN 1000
 #define MAX_LINE 64
 #define MAX_NAME 128
 #define MAX_SMALL 64
 #define PID_MAX 4194304
-#define WM_SCAN_TIMEOUT 1
-#define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))
+#define WM_TIMEOUT 1
+#define MIN_WM_PID 300
+#define MAX_WM_PID 100000
+#define MAX_SCAN 50000
+#define ARRLEN(a) (sizeof(a) / sizeof((a)[0]))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-_Static_assert(CACHE_SIZE <= PID_MAX, "cache bigger than pid space");
+_Static_assert(CACHE_SZ <= PID_MAX, "cache bigger than pid space");
 #else
-typedef char static_assert_cache_size[(CACHE_SIZE <= PID_MAX) ? 1 : -1];
+typedef char static_assert_cache_size[(CACHE_SZ <= PID_MAX) ? 1 : -1];
 #endif
 
-typedef struct
-{
+typedef struct {
 	pid_t pid;
 	pid_t ppid;
 	char exe[PATH_MAX];
 	time_t ct;
-	uint8_t flags;
+	uint8_t flg;
 } proc_t;
 
-#define PROC_HAS_EXE 1
-#define PROC_HAS_PPID 2
-#define PROC_VALIDATED 4
+#define F_EXE 1
+#define F_PPID 2
+#define F_VALID 4
 
-static proc_t cache[CACHE_SIZE];
-static size_t cache_cnt = 0;
+static proc_t cache[CACHE_SZ];
+static size_t cache_n = 0;
 static char wm_cache[MAX_SMALL] = {0};
-static int wm_cached = 0;
+static int wm_ok = 0;
 static char os_cache[MAX_NAME] = {0};
-static int os_cached = 0;
+static int os_ok = 0;
 static char host_cache[MAX_SMALL] = {0};
-static int host_cached = 0;
+static int host_ok = 0;
 
 static const struct {
-	const char *name;
-	size_t len;
+	const char *nm;
+	size_t ln;
 } shells[] = {
 	{"bash", 4}, {"zsh", 3}, {"fish", 4}, {"dash", 4},
 	{"sh", 2}, {"ksh", 3}, {"tcsh", 4}, {"csh", 3},
@@ -72,8 +74,8 @@ static const struct {
 };
 
 static const struct {
-	const char *name;
-	size_t len;
+	const char *nm;
+	size_t ln;
 } terms[] = {
 	{"alacritty", 9}, {"kitty", 5}, {"wezterm", 7}, {"gnome-terminal", 14},
 	{"konsole", 7}, {"xfce4-terminal", 14}, {"foot", 4}, {"ghostty", 7},
@@ -90,8 +92,8 @@ static const struct {
 };
 
 static const struct {
-	const char *name;
-	size_t len;
+	const char *nm;
+	size_t ln;
 } wms[] = {
 	{"Hyprland", 8}, {"sway", 4}, {"kwin", 4}, {"mutter", 6},
 	{"openbox", 7}, {"i3", 2}, {"bspwm", 5}, {"awesome", 7},
@@ -114,42 +116,48 @@ static const struct {
 };
 
 static inline void
-str_copy(char *dst, const char *src, size_t sz)
+scpy(char *d, const char *s, size_t z)
 {
-	if (sz == 0)
-		__builtin_trap();
-	size_t len = strnlen(src, sz);
-	if (len < sz) {
-		__builtin_memcpy(dst, src, len + 1);
+	if (!d || !s || z == 0)
+		return;
+	size_t l = strnlen(s, z);
+	if (l < z) {
+		__builtin_memcpy(d, s, l + 1);
 	} else {
-		__builtin_memcpy(dst, src, sz - 1);
-		dst[sz - 1] = '\0';
+		__builtin_memcpy(d, s, z - 1);
+		d[z - 1] = '\0';
 	}
 }
 
 static inline int
-valid_pid(pid_t pid)
+valid_pid(pid_t p)
 {
-	return pid > 0 && pid <= PID_MAX;
+	return p > 0 && p <= PID_MAX;
+}
+
+static int
+ppath(pid_t p, const char *f, char *b, size_t z)
+{
+	int n = snprintf(b, z, "/proc/%d/%s", p, f);
+	return (n < 0 || (size_t)n >= z) ? -1 : 0;
 }
 
 static inline int
-proc_exists(pid_t pid)
+pexists(pid_t p)
 {
-	char path[64];
+	char pt[64];
 	struct stat st;
-	int n = snprintf(path, sizeof(path), "/proc/%d", pid);
-	if (n < 0 || (size_t)n >= sizeof(path))
+	if (ppath(p, "", pt, sizeof(pt)) != 0)
 		return 0;
-	return stat(path, &st) == 0;
+	return stat(pt, &st) == 0;
 }
 
 static proc_t *
-cache_get(pid_t pid)
+cget(pid_t p)
 {
-	for (size_t i = 0; i < cache_cnt; ++i) {
-		if (cache[i].pid == pid) {
-			if (!proc_exists(pid))
+	for (size_t i = 0; i < cache_n; ++i) {
+		if (cache[i].pid == p) {
+			if (!pexists(p))
 				return NULL;
 			return &cache[i];
 		}
@@ -158,410 +166,395 @@ cache_get(pid_t pid)
 }
 
 static proc_t *
-cache_add(pid_t pid)
+cadd(pid_t p)
 {
-	if (cache_cnt >= CACHE_SIZE)
+	if (cache_n >= CACHE_SZ)
 		return NULL;
-	size_t idx = cache_cnt++;
-	cache[idx].pid = pid;
-	cache[idx].ppid = -1;
-	cache[idx].exe[0] = '\0';
-	cache[idx].flags = 0;
-	cache[idx].ct = time(NULL);
-	return &cache[idx];
+	size_t i = cache_n++;
+	cache[i].pid = p;
+	cache[i].ppid = -1;
+	cache[i].exe[0] = '\0';
+	cache[i].flg = 0;
+	cache[i].ct = time(NULL);
+	return &cache[i];
 }
 
 static int
-read_ppid(pid_t pid, pid_t *out)
+rppid(pid_t p, pid_t *o)
 {
-	char path[64];
-	int n = snprintf(path, sizeof(path), "/proc/%d/stat", pid);
-	if (n < 0 || (size_t)n >= sizeof(path))
+	char pt[64];
+	if (ppath(p, "stat", pt, sizeof(pt)) != 0)
 		return -1;
-
-	FILE *f = fopen(path, "r");
+	FILE *f = fopen(pt, "r");
 	if (!f)
 		return -1;
-
-	int ok = fscanf(f, "%*d %*s %*c %d", out);
+	int ok = fscanf(f, "%*d %*s %*c %d", o);
 	fclose(f);
 	return (ok == 1) ? 0 : -1;
 }
 
 static int
-read_exe(pid_t pid, char *buf, size_t sz)
+rexe(pid_t p, char *b, size_t z)
 {
-	char path[PATH_MAX];
-	char tmp[PATH_MAX];
-	int n = snprintf(path, sizeof(path), "/proc/%d/exe", pid);
-	if (n < 0 || (size_t)n >= sizeof(path))
-		return -1;
+	char pt[PATH_MAX], tmp[PATH_MAX];
+	int ret = -1;
 
-	ssize_t len = readlink(path, tmp, sizeof(tmp) - 1);
-	if (len <= 0)
+	if (ppath(p, "exe", pt, sizeof(pt)) != 0)
 		return -1;
-	tmp[len] = '\0';
+	ssize_t l = readlink(pt, tmp, sizeof(tmp) - 1);
+	if (l <= 0)
+		return -1;
+	tmp[l] = '\0';
 
 	char *res = realpath(tmp, NULL);
 	if (res) {
 		struct stat st;
-		if (stat(res, &st) != 0) {
-			free(res);
-			return -1;
-		}
-
-		if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode)) {
-			free(res);
-			return -1;
-		}
-
-		if (strncmp(res, "/usr", 4) == 0 ||
-		    strncmp(res, "/bin", 4) == 0 ||
-		    strncmp(res, "/opt", 4) == 0 ||
-		    strncmp(res, "/home", 5) == 0) {
-			str_copy(buf, res, sz);
-			free(res);
-			return 0;
+		if (stat(res, &st) == 0) {
+			if (S_ISREG(st.st_mode) || S_ISDIR(st.st_mode)) {
+				if (strncmp(res, "/usr", 4) == 0 ||
+				    strncmp(res, "/bin", 4) == 0 ||
+				    strncmp(res, "/opt", 4) == 0 ||
+				    strncmp(res, "/home", 5) == 0) {
+					scpy(b, res, z);
+					ret = 0;
+				}
+			}
 		}
 		free(res);
+		if (ret == 0)
+			return 0;
 		return -1;
 	}
-
-	str_copy(buf, tmp, sz);
+	scpy(b, tmp, z);
 	return 0;
 }
 
 static int
-get_proc(pid_t pid, proc_t *p)
+gproc(pid_t p, proc_t *pr)
 {
-	if (!valid_pid(pid))
+	if (!valid_pid(p))
 		return -1;
-	if (!proc_exists(pid))
+	if (!pexists(p))
 		return -1;
 
-	proc_t *cached = cache_get(pid);
-	if (cached) {
-		if (p != cached)
-			*p = *cached;
+	proc_t *c = cget(p);
+	if (c) {
+		if (pr != c)
+			*pr = *c;
 		return 0;
 	}
 
-	proc_t *e = cache_add(pid);
+	proc_t *e = cadd(p);
 	if (!e)
 		return -1;
 
-	e->pid = pid;
-	if (read_ppid(pid, &e->ppid) == 0) {
-		e->flags |= PROC_HAS_PPID;
+	e->pid = p;
+	if (rppid(p, &e->ppid) == 0) {
+		e->flg |= F_PPID;
 	} else {
 		e->ppid = -1;
 	}
 
-	if (read_exe(pid, e->exe, sizeof(e->exe)) == 0) {
-		e->flags |= PROC_HAS_EXE;
+	if (rexe(p, e->exe, sizeof(e->exe)) == 0) {
+		e->flg |= F_EXE;
 	} else {
 		e->exe[0] = '\0';
 	}
 
-	*p = *e;
+	*pr = *e;
 	return 0;
 }
 
 static size_t
-build_chain(pid_t start, proc_t *out, size_t max)
+bchain(pid_t st, proc_t *o, size_t mx)
 {
-	size_t idx = 0;
-	pid_t cur = start;
+	size_t i = 0;
+	pid_t c = st;
 
-	while (valid_pid(cur) && idx < max && idx < MAX_CHAIN) {
-		if (get_proc(cur, &out[idx]) != 0)
+	while (valid_pid(c) && i < mx && i < MAX_CHAIN) {
+		if (gproc(c, &o[i]) != 0)
 			break;
-
-		if (out[idx].flags & PROC_HAS_PPID && out[idx].ppid != cur &&
-		    out[idx].ppid > 0) {
-			cur = out[idx].ppid;
+		if (o[i].flg & F_PPID && o[i].ppid != c && o[i].ppid > 0) {
+			c = o[i].ppid;
 		} else {
 			break;
 		}
-
-		idx++;
+		i++;
 	}
-
-	return idx;
+	return i;
 }
 
 static inline int
-str_eq(const char *a, const char *b)
+seq(const char *a, const char *b)
 {
 	return strcmp(a, b) == 0;
 }
 
 static inline int
-str_prefix(const char *s, const char *pre, size_t plen)
+spfx(const char *s, const char *p, size_t pl)
 {
-	return strncmp(s, pre, plen) == 0;
+	return strncmp(s, p, pl) == 0;
 }
 
 static int
-is_shell(const char *n)
+issh(const char *n)
 {
-	if (!n)
+	if (!n || !*n)
 		return 0;
 	char fc = n[0];
-	for (size_t i = 0; i < ARRAY_LEN(shells); ++i) {
-		if (fc != shells[i].name[0])
-			continue;
-		if (str_eq(n, shells[i].name))
+	for (size_t i = 0; i < ARRLEN(shells); ++i) {
+		if (fc == shells[i].nm[0] && seq(n, shells[i].nm))
 			return 1;
 	}
 	return 0;
 }
 
 static void
-basename_of(const char *path, char *out, size_t sz)
+bname(const char *pt, char *o, size_t z)
 {
-	const char *b = strrchr(path, '/');
-	str_copy(out, b ? b + 1 : path, sz);
+	const char *b = strrchr(pt, '/');
+	scpy(o, b ? b + 1 : pt, z);
 }
 
 static void
-get_user(char *buf, size_t sz)
+guser(char *b, size_t z)
 {
 	struct passwd *pw = getpwuid(getuid());
-	str_copy(buf, (pw && pw->pw_name) ? pw->pw_name : "user", sz);
+	scpy(b, (pw && pw->pw_name) ? pw->pw_name : "user", z);
 }
 
 static void
-get_host(char *buf, size_t sz)
+ghost(char *b, size_t z)
 {
-	if (host_cached) {
-		str_copy(buf, host_cache, sz);
+	if (host_ok) {
+		scpy(b, host_cache, z);
 		return;
 	}
-
-	if (gethostname(buf, sz) != 0) {
-		str_copy(buf, "localhost", sz);
+	if (gethostname(b, z) != 0) {
+		scpy(b, "localhost", z);
 	} else {
-		buf[sz - 1] = '\0';
+		b[z - 1] = '\0';
 	}
-
-	str_copy(host_cache, buf, sizeof(host_cache));
-	host_cached = 1;
+	scpy(host_cache, b, sizeof(host_cache));
+	host_ok = 1;
 }
 
 static void
-get_shell(proc_t *chain, size_t cnt, char *buf, size_t sz)
+gsh(proc_t *ch, size_t n, char *b, size_t z)
 {
-	char base[MAX_NAME];
-	for (size_t i = 0; i < cnt; ++i) {
-		if (!(chain[i].flags & PROC_HAS_EXE))
+	char bs[MAX_NAME];
+	for (size_t i = 0; i < n; ++i) {
+		if (!(ch[i].flg & F_EXE))
 			continue;
-		basename_of(chain[i].exe, base, sizeof(base));
-		if (is_shell(base)) {
-			str_copy(buf, base, sz);
+		bname(ch[i].exe, bs, sizeof(bs));
+		if (issh(bs)) {
+			scpy(b, bs, z);
 			return;
 		}
 	}
-	str_copy(buf, "unknown", sz);
+	scpy(b, "unknown", z);
 }
 
 static void
-get_term(proc_t *chain, size_t cnt, char *buf, size_t sz)
+gterm(proc_t *ch, size_t n, char *b, size_t z)
 {
-	char base[MAX_NAME];
-	for (size_t i = 1; i < cnt; ++i) {
-		if (!(chain[i].flags & PROC_HAS_EXE))
+	char bs[MAX_NAME];
+	for (size_t i = 1; i < n; ++i) {
+		if (!(ch[i].flg & F_EXE))
 			continue;
-		basename_of(chain[i].exe, base, sizeof(base));
-		if (is_shell(base))
+		bname(ch[i].exe, bs, sizeof(bs));
+		if (issh(bs))
 			continue;
 
-		char fc = base[0];
-		for (size_t j = 0; j < ARRAY_LEN(terms); ++j) {
-			if (fc != terms[j].name[0])
+		char fc = bs[0];
+		for (size_t j = 0; j < ARRLEN(terms); ++j) {
+			if (fc != terms[j].nm[0])
 				continue;
-			if (str_eq(base, terms[j].name) ||
-			    str_prefix(base, terms[j].name, terms[j].len)) {
-				str_copy(buf, terms[j].name, sz);
+			if (seq(bs, terms[j].nm) ||
+			    spfx(bs, terms[j].nm, terms[j].ln)) {
+				scpy(b, terms[j].nm, z);
 				return;
 			}
 		}
 
-		if (base[0] != '\0') {
-			str_copy(buf, base, sz);
+		if (bs[0] != '\0') {
+			scpy(b, bs, z);
 			return;
 		}
 	}
-	str_copy(buf, "unknown", sz);
+	scpy(b, "unknown", z);
 }
 
 static int
-read_comm(const char *pid_str, char *comm, size_t sz)
+rcomm(const char *ps, char *cm, size_t z)
 {
-	char path[PATH_MAX];
-	int n = snprintf(path, sizeof(path), "/proc/%s/comm", pid_str);
-	if (n < 0 || (size_t)n >= sizeof(path))
+	char pt[PATH_MAX];
+	int n = snprintf(pt, sizeof(pt), "/proc/%s/comm", ps);
+	if (n < 0 || (size_t)n >= sizeof(pt))
 		return -1;
 
-	FILE *f = fopen(path, "r");
+	FILE *f = fopen(pt, "r");
 	if (!f)
 		return -1;
 
-	if (!fgets(comm, sz, f)) {
+	if (!fgets(cm, z, f)) {
 		fclose(f);
 		return -1;
 	}
 	fclose(f);
 
-	size_t len = strnlen(comm, sz);
-	if (len > 0 && comm[len - 1] == '\n')
-		comm[len - 1] = '\0';
-
+	size_t l = strnlen(cm, z);
+	if (l > 0 && cm[l - 1] == '\n')
+		cm[l - 1] = '\0';
 	return 0;
 }
 
 static int
-likely_wm_pid(const char *name)
+likely_wm(const char *nm)
 {
-	unsigned long pid = strtoul(name, NULL, 10);
-	if (pid < 300)
+	char *ep;
+	errno = 0;
+	unsigned long p = strtoul(nm, &ep, 10);
+	if (errno != 0 || *ep != '\0' || ep == nm)
 		return 0;
-	if (pid > 100000)
-		return 0;
-	return 1;
+	return (p >= MIN_WM_PID && p <= MAX_WM_PID);
 }
 
 static void
-get_wm(char *buf, size_t sz)
+gwm(char *b, size_t z)
 {
-	if (wm_cached) {
-		str_copy(buf, wm_cache, sz);
+	if (wm_ok) {
+		scpy(b, wm_cache, z);
 		return;
 	}
 
-	DIR *proc = opendir("/proc");
-	if (!proc) {
-		str_copy(buf, "unknown", sz);
-		str_copy(wm_cache, "unknown", sizeof(wm_cache));
-		wm_cached = 1;
+	DIR *pr = opendir("/proc");
+	if (!pr) {
+		scpy(b, "unknown", z);
+		scpy(wm_cache, "unknown", sizeof(wm_cache));
+		wm_ok = 1;
 		return;
 	}
 
-	time_t start = time(NULL);
-	struct dirent *ent;
-	char comm[MAX_SMALL];
-	size_t dcnt = 0;
+	time_t st = time(NULL);
+	struct dirent *e;
+	char cm[MAX_SMALL];
+	size_t dc = 0;
 
-	while ((ent = readdir(proc))) {
-		if (++dcnt > 50000)
+	while ((e = readdir(pr))) {
+		if (++dc > MAX_SCAN)
 			break;
-		if (time(NULL) - start >= WM_SCAN_TIMEOUT)
+		if (time(NULL) - st >= WM_TIMEOUT)
 			break;
-		if (ent->d_name[0] < '0' || ent->d_name[0] > '9')
+		if (e->d_name[0] < '0' || e->d_name[0] > '9')
 			continue;
-		if (!likely_wm_pid(ent->d_name))
+		if (!likely_wm(e->d_name))
 			continue;
-		if (read_comm(ent->d_name, comm, sizeof(comm)) != 0)
+		if (rcomm(e->d_name, cm, sizeof(cm)) != 0)
 			continue;
-		if (comm[0] == '\0')
+		if (cm[0] == '\0')
 			continue;
 
-		char fc = comm[0];
-		for (size_t i = 0; i < ARRAY_LEN(wms); ++i) {
-			if (fc != wms[i].name[0])
+		char fc = cm[0];
+		for (size_t i = 0; i < ARRLEN(wms); ++i) {
+			if (fc != wms[i].nm[0])
 				continue;
-			if (str_eq(comm, wms[i].name) ||
-			    str_prefix(comm, wms[i].name, wms[i].len)) {
-				str_copy(buf, wms[i].name, sz);
-				str_copy(wm_cache, buf, sizeof(wm_cache));
-				wm_cached = 1;
-				closedir(proc);
+			if (seq(cm, wms[i].nm) || spfx(cm, wms[i].nm, wms[i].ln)) {
+				scpy(b, wms[i].nm, z);
+				scpy(wm_cache, b, sizeof(wm_cache));
+				wm_ok = 1;
+				closedir(pr);
 				return;
 			}
 		}
 	}
 
-	closedir(proc);
-	str_copy(buf, "unknown", sz);
-	str_copy(wm_cache, "unknown", sizeof(wm_cache));
-	wm_cached = 1;
+	closedir(pr);
+	scpy(b, "unknown", z);
+	scpy(wm_cache, "unknown", sizeof(wm_cache));
+	wm_ok = 1;
+}
+
+static int
+parse_os(const char *px, size_t pl, char *ln, char *o, size_t z)
+{
+	if (strncmp(ln, px, pl) != 0)
+		return -1;
+
+	char *st = strchr(ln, '"');
+	char *en = strrchr(ln, '"');
+	if (st && en && st < en) {
+		*en = '\0';
+		size_t rm = strnlen(st + 1, z);
+		scpy(o, st + 1, MIN(rm + 1, z));
+		return 0;
+	}
+
+	char *p = ln + pl;
+	size_t l = strnlen(p, MAX_LINE - pl);
+	if (l > 0 && p[l - 1] == '\n')
+		p[l - 1] = '\0';
+	scpy(o, p, z);
+	return 0;
 }
 
 static void
-get_os(char *buf, size_t sz)
+gos(char *b, size_t z)
 {
-	if (os_cached) {
-		str_copy(buf, os_cache, sz);
+	if (os_ok) {
+		scpy(b, os_cache, z);
 		return;
 	}
 
 	FILE *f = fopen("/etc/os-release", "r");
 	if (!f) {
-		str_copy(buf, "Linux", sz);
-		str_copy(os_cache, "Linux", sizeof(os_cache));
-		os_cached = 1;
+		scpy(b, "Linux", z);
+		scpy(os_cache, "Linux", sizeof(os_cache));
+		os_ok = 1;
 		return;
 	}
 
-	char line[MAX_LINE];
-	char pretty[MAX_LINE] = {0};
-	char name[MAX_LINE] = {0};
-	int found_pretty = 0;
-	int found_name = 0;
+	char ln[MAX_LINE];
+	char pr[MAX_LINE] = {0};
+	char nm[MAX_LINE] = {0};
+	int fp = 0;
+	int fn = 0;
 
-	while (fgets(line, sizeof(line), f)) {
-		if (strncmp(line, "PRETTY_NAME=", 12) == 0) {
-			char *start = strchr(line, '"');
-			char *end = strrchr(line, '"');
-			if (start && end && start < end) {
-				*end = '\0';
-				str_copy(pretty, start + 1, sizeof(pretty));
-				found_pretty = 1;
-				break;
-			}
-		} else if (strncmp(line, "NAME=", 5) == 0 && !found_name) {
-			char *start = strchr(line, '"');
-			char *end = strrchr(line, '"');
-			if (start && end && start < end) {
-				*end = '\0';
-				str_copy(name, start + 1, sizeof(name));
-				found_name = 1;
-			} else {
-				char *p = line + 5;
-				size_t len = strnlen(p, sizeof(line) - 5);
-				if (len > 0 && p[len - 1] == '\n')
-					p[len - 1] = '\0';
-				str_copy(name, p, sizeof(name));
-				found_name = 1;
-			}
+	while (fgets(ln, sizeof(ln), f)) {
+		if (!fp && parse_os("PRETTY_NAME=", 12, ln, pr, sizeof(pr)) == 0) {
+			fp = 1;
+			break;
+		}
+		if (!fn && parse_os("NAME=", 5, ln, nm, sizeof(nm)) == 0) {
+			fn = 1;
 		}
 	}
 
-	if (found_pretty) {
-		str_copy(buf, pretty, sz);
-		str_copy(os_cache, pretty, sizeof(os_cache));
-	} else if (found_name) {
-		str_copy(buf, name, sz);
-		str_copy(os_cache, name, sizeof(os_cache));
+	if (fp) {
+		scpy(b, pr, z);
+		scpy(os_cache, pr, sizeof(os_cache));
+	} else if (fn) {
+		scpy(b, nm, z);
+		scpy(os_cache, nm, sizeof(os_cache));
 	} else {
-		str_copy(buf, "Linux", sz);
-		str_copy(os_cache, "Linux", sizeof(os_cache));
+		scpy(b, "Linux", z);
+		scpy(os_cache, "Linux", sizeof(os_cache));
 	}
 
-	os_cached = 1;
+	os_ok = 1;
 	fclose(f);
 }
 
 static void
-print_sep(size_t len)
+psep(size_t l)
 {
-	for (size_t i = 0; i < len; ++i)
+	for (size_t i = 0; i < l; ++i)
 		putchar('-');
 	putchar('\n');
 }
 
 static void
-print_version(void)
+pver(void)
 {
 	printf("zeptofetch %s\n", VERSION);
 	printf("Copyright (C) 2025 Gurov\n");
@@ -584,36 +577,36 @@ print_version(void)
 #endif
 
 	printf("CONFIG: CACHE=%d CHAIN=%d PATH=%d PID=%d TIMEOUT=%ds\n",
-	    CACHE_SIZE, MAX_CHAIN, PATH_MAX, PID_MAX, WM_SCAN_TIMEOUT);
+	    CACHE_SZ, MAX_CHAIN, PATH_MAX, PID_MAX, WM_TIMEOUT);
 }
 
 static void
-sanitise_rel(char *dst, size_t sz, const char *src)
+san_rel(char *d, size_t z, const char *s)
 {
 	size_t i = 0;
-	while (i < sz - 1 && src[i] != '\0' && src[i] != ' ') {
-		dst[i] = src[i];
+	while (i < z - 1 && s[i] != '\0' && s[i] != ' ') {
+		d[i] = s[i];
 		i++;
 	}
-	dst[i] = '\0';
+	d[i] = '\0';
 }
 
 static void
-display(const char *user, const char *host, const char *os, const char *kern,
-    const char *shell, const char *wm, const char *term)
+disp(const char *u, const char *h, const char *os, const char *k,
+    const char *sh, const char *wm, const char *tm)
 {
 	char rel[64];
-	sanitise_rel(rel, sizeof(rel), kern);
+	san_rel(rel, sizeof(rel), k);
 
 	char tmp[256];
-	int n = snprintf(tmp, sizeof(tmp), "%s@%s", user, host);
-	size_t len = (n > 0 && (size_t)n < sizeof(tmp)) ? (size_t)n : 0;
+	int n = snprintf(tmp, sizeof(tmp), "%s@%s", u, h);
+	size_t l = (n > 0 && (size_t)n < sizeof(tmp)) ? (size_t)n : 0;
 
 	printf("%s    ___ %s     %s%s@%s%s\n",
-	    COLOR_1, COLOR_RESET, COLOR_1, user, host, COLOR_RESET);
+	    COLOR_1, COLOR_RESET, COLOR_1, u, h, COLOR_RESET);
 	printf("%s   (%s.· %s|%s     ", COLOR_1, COLOR_2, COLOR_1,
 	    COLOR_RESET);
-	print_sep(len);
+	psep(l);
 	printf("%s   (%s<>%s %s|%s     %sOS:%s %s\n",
 	    COLOR_1, COLOR_3, COLOR_RESET, COLOR_1, COLOR_RESET,
 	    COLOR_3, COLOR_RESET, os);
@@ -622,13 +615,13 @@ display(const char *user, const char *host, const char *os, const char *kern,
 	    rel);
 	printf("%s ( %s/  \\ %s/|%s   %sShell:%s %s\n",
 	    COLOR_1, COLOR_2, COLOR_1, COLOR_RESET, COLOR_3, COLOR_RESET,
-	    shell);
+	    sh);
 	printf("%s_%s/\\ %s__)%s/%s_%s)%s   %sWM:%s %s\n",
 	    COLOR_3, COLOR_1, COLOR_2, COLOR_1, COLOR_3, COLOR_1,
 	    COLOR_RESET, COLOR_3, COLOR_RESET, wm);
 	printf("%s%s\\/%s-____%s\\/%s    %sTerminal:%s %s\n\n",
 	    COLOR_1, COLOR_3, COLOR_1, COLOR_3, COLOR_RESET,
-	    COLOR_3, COLOR_RESET, term);
+	    COLOR_3, COLOR_RESET, tm);
 }
 
 int
@@ -645,36 +638,36 @@ main(int argc, char **argv)
 	setlocale(LC_ALL, "");
 
 	if (argc > 1) {
-		if (str_eq(argv[1], "--version") || str_eq(argv[1], "-v")) {
-			print_version();
+		if (seq(argv[1], "--version") || seq(argv[1], "-v")) {
+			pver();
 			return 0;
 		}
 	}
 
-	char user[MAX_SMALL];
-	char host[MAX_SMALL];
-	char shell[MAX_SMALL];
+	char u[MAX_SMALL];
+	char h[MAX_SMALL];
+	char sh[MAX_SMALL];
 	char wm[MAX_SMALL];
-	char term[MAX_SMALL];
+	char tm[MAX_SMALL];
 	char os[MAX_NAME];
-	struct utsname info;
+	struct utsname inf;
 
-	if (uname(&info) != 0)
-		return 1;
+	if (uname(&inf) != 0)
+		scpy(inf.release, "unknown", sizeof(inf.release));
 
-	get_user(user, sizeof(user));
-	get_host(host, sizeof(host));
+	guser(u, sizeof(u));
+	ghost(h, sizeof(h));
 
-	proc_t chain[CACHE_SIZE];
-	cache_cnt = 0;
-	size_t cnt = build_chain(getpid(), chain, CACHE_SIZE);
+	proc_t ch[CACHE_SZ];
+	cache_n = 0;
+	size_t n = bchain(getpid(), ch, CACHE_SZ);
 
-	get_shell(chain, cnt, shell, sizeof(shell));
-	get_term(chain, cnt, term, sizeof(term));
-	get_wm(wm, sizeof(wm));
-	get_os(os, sizeof(os));
+	gsh(ch, n, sh, sizeof(sh));
+	gterm(ch, n, tm, sizeof(tm));
+	gwm(wm, sizeof(wm));
+	gos(os, sizeof(os));
 
-	display(user, host, os, info.release, shell, wm, term);
+	disp(u, h, os, inf.release, sh, wm, tm);
 
 	return 0;
 }
