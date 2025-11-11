@@ -11,7 +11,7 @@
 [![Issues](https://img.shields.io/github/issues/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/issues)
 [![Pull Requests](https://img.shields.io/github/issues-pr/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/pulls)
 
-![zeptofetch v1.5](https://roblo-x.com/1kvwoscj.webp)
+![zeptofetch v1.9](https://roblo-x.com/pxf02euc.webp)
 
 [Features](#features) • [Benchmarks](#benchmarks) • [Installation](#installation) • [Usage](#usage) • [Configuration](#configuration)
 
@@ -19,13 +19,13 @@
 
 ## 🎯 Why zeptofetch?
 `zeptofetch` delivers system information in **under 1ms*** with a **28KB binary***. No scripts, no bloat, just pure C doing exactly what you need.
-While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, zeptofetch gives you information 480x faster* with a fraction of the size.
+While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, zeptofetch gives you information 553x faster* with a fraction of the size.
 
 <sub>*_Performance varies by hardware and system configuration. See [benchmarks](#benchmarks) for details._</sub>
 
 ## ✨ Features
 **Fast & Lightweight**
-- ⚡ Runs in ~0.8 ms (445× faster than neofetch)
+- ⚡ Runs in ~0.73 ms (553× faster than neofetch)
 - 📦 Only 28 KB in size
 - 💾 No dependencies needed
 
@@ -53,13 +53,13 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine) on the following s
 
 </details>
 
-| Tool           | Runtime*            | Binary Size | Speed vs neofetch     |
-|----------------|---------------------|-------------|-----------------------|
-| **zeptofetch** | **0.80ms ± 0.09ms** | **28 KB**   | `480x faster`         |
-| fastfetch      | 3.6ms ± 0.4ms       | ~200 KB     | `107x faster`         |
-| neofetch       | 384.1ms ± 6.7ms     | ~50 KB      | *baseline*            |
+| Tool           | Runtime*              | Binary Size | Speed vs neofetch     |
+|----------------|-----------------------|-------------|-----------------------|
+| **zeptofetch** | **732.4µs ± 77.7µs**  | **28 KB**   | `553x faster`         |
+| fastfetch      | 6.7ms ± 1.0ms         | ~200 KB     | `61x faster`          |
+| neofetch       | 405.1ms ± 21.0ms      | ~50 KB      | *baseline*            |
 
-<sub>*_Runtime performance is highly dependent on hardware, system load, and configuration. The kernel, scheduler, desktop environment (DE), window manager (WM), and terminal emulator can all influence speed, leading to different results on your system. The benchmark results shown are from a prebuilt binary version v1.8. While prebuilt releases may sometimes offer competitive runtime speeds, it often feels like a 50/50 chance. Manual compilation is generally safer, yielding more consistent performance optimized for your specific configuration._</sub>
+<sub>*_Performance varies based on hardware, system load, CPU scheduler, kernel, desktop environment, and terminal emulator. Benchmarks shown are from prebuilt binary v1.9. For optimal and consistent performance tailored to your system, I recommend compiling from source._</sub>
 
 ## 🚀 Installation
 
@@ -81,15 +81,9 @@ This builds with `-march=native` for maximum performance on your specific CPU.
 For Arch Linux users, zeptofetch is available in the AUR:
 
 ```bash
-# Using paru
 paru -S zeptofetch        # Build from source
 paru -S zeptofetch-bin    # Prebuilt binary
 paru -S zeptofetch-git    # Latest from git
-
-# Using yay
-yay -S zeptofetch         # Build from source
-yay -S zeptofetch-bin     # Prebuilt binary
-yay -S zeptofetch-git     # Latest from git
 ```
 
 ### Alternative: Prebuilt Releases
