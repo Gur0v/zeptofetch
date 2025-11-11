@@ -3,11 +3,13 @@
 #include <limits.h>
 #include <locale.h>
 #include <pwd.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/prctl.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/utsname.h>
 #include <time.h>
@@ -18,7 +20,7 @@
 #define PATH_MAX 4096
 #endif
 
-#define VERSION "v1.9"
+#define VERSION "v1.10"
 #define CACHE_SZ 1024
 #define MAX_CHAIN 1000
 #define MAX_LINE 64
@@ -31,8 +33,6 @@
 #define MAX_SCAN 50000
 #define ARRLEN(a) (sizeof(a) / sizeof((a)[0]))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
-#define likely(x) __builtin_expect(!!(x), 1)
-#define unlikely(x) __builtin_expect(!!(x), 0)
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 _Static_assert(CACHE_SZ <= PID_MAX, "cache bigger than pid space");
@@ -44,13 +44,13 @@ typedef struct {
 	pid_t pid;
 	pid_t ppid;
 	char exe[PATH_MAX];
-	time_t ct;
+	unsigned long long st;
 	uint8_t flg;
 } proc_t;
 
 #define F_EXE 1
 #define F_PPID 2
-#define F_VALID 4
+#define F_ST 4
 
 static proc_t cache[CACHE_SZ];
 static size_t cache_n = 0;
@@ -60,6 +60,7 @@ static char os_cache[MAX_NAME] = {0};
 static int os_ok = 0;
 static char host_cache[MAX_SMALL] = {0};
 static int host_ok = 0;
+static volatile sig_atomic_t scan_to = 0;
 
 static const struct {
 	const char *nm;
@@ -120,17 +121,18 @@ scpy(char *d, const char *s, size_t z)
 {
 	if (!d || !s || z == 0)
 		return;
-	size_t l = strnlen(s, z);
-	if (l < z) {
-		__builtin_memcpy(d, s, l + 1);
-	} else {
-		__builtin_memcpy(d, s, z - 1);
-		d[z - 1] = '\0';
+	size_t i;
+	for (i = 0; i < z - 1 && s[i] != '\0'; i++) {
+		if (s[i] >= 32 && s[i] <= 126)
+			d[i] = s[i];
+		else
+			d[i] = '_';
 	}
+	d[i] = '\0';
 }
 
 static inline int
-valid_pid(pid_t p)
+vpid(pid_t p)
 {
 	return p > 0 && p <= PID_MAX;
 }
@@ -142,14 +144,20 @@ ppath(pid_t p, const char *f, char *b, size_t z)
 	return (n < 0 || (size_t)n >= z) ? -1 : 0;
 }
 
-static inline int
-pexists(pid_t p)
+static int
+gst(pid_t p, unsigned long long *o)
 {
 	char pt[64];
-	struct stat st;
-	if (ppath(p, "", pt, sizeof(pt)) != 0)
-		return 0;
-	return stat(pt, &st) == 0;
+	if (ppath(p, "stat", pt, sizeof(pt)) != 0)
+		return -1;
+	FILE *f = fopen(pt, "r");
+	if (!f)
+		return -1;
+	int ok = fscanf(f, "%*d %*s %*c %*d %*d %*d %*d %*d %*u "
+	                   "%*u %*u %*u %*u %*u %*u %*d %*d %*d "
+	                   "%*d %*d %*d %llu", o);
+	fclose(f);
+	return (ok == 1) ? 0 : -1;
 }
 
 static proc_t *
@@ -157,7 +165,12 @@ cget(pid_t p)
 {
 	for (size_t i = 0; i < cache_n; ++i) {
 		if (cache[i].pid == p) {
-			if (!pexists(p))
+			if (!(cache[i].flg & F_ST))
+				return &cache[i];
+			unsigned long long st;
+			if (gst(p, &st) != 0)
+				return NULL;
+			if (st != cache[i].st)
 				return NULL;
 			return &cache[i];
 		}
@@ -174,8 +187,8 @@ cadd(pid_t p)
 	cache[i].pid = p;
 	cache[i].ppid = -1;
 	cache[i].exe[0] = '\0';
+	cache[i].st = 0;
 	cache[i].flg = 0;
-	cache[i].ct = time(NULL);
 	return &cache[i];
 }
 
@@ -213,6 +226,7 @@ rexe(pid_t p, char *b, size_t z)
 			if (S_ISREG(st.st_mode) || S_ISDIR(st.st_mode)) {
 				if (strncmp(res, "/usr", 4) == 0 ||
 				    strncmp(res, "/bin", 4) == 0 ||
+				    strncmp(res, "/sbin", 5) == 0 ||
 				    strncmp(res, "/opt", 4) == 0 ||
 				    strncmp(res, "/home", 5) == 0) {
 					scpy(b, res, z);
@@ -232,9 +246,7 @@ rexe(pid_t p, char *b, size_t z)
 static int
 gproc(pid_t p, proc_t *pr)
 {
-	if (!valid_pid(p))
-		return -1;
-	if (!pexists(p))
+	if (!vpid(p))
 		return -1;
 
 	proc_t *c = cget(p);
@@ -249,6 +261,13 @@ gproc(pid_t p, proc_t *pr)
 		return -1;
 
 	e->pid = p;
+
+	unsigned long long st;
+	if (gst(p, &st) == 0) {
+		e->st = st;
+		e->flg |= F_ST;
+	}
+
 	if (rppid(p, &e->ppid) == 0) {
 		e->flg |= F_PPID;
 	} else {
@@ -271,7 +290,7 @@ bchain(pid_t st, proc_t *o, size_t mx)
 	size_t i = 0;
 	pid_t c = st;
 
-	while (valid_pid(c) && i < mx && i < MAX_CHAIN) {
+	while (vpid(c) && i < mx && i < MAX_CHAIN) {
 		if (gproc(c, &o[i]) != 0)
 			break;
 		if (o[i].flg & F_PPID && o[i].ppid != c && o[i].ppid > 0) {
@@ -410,7 +429,7 @@ rcomm(const char *ps, char *cm, size_t z)
 }
 
 static int
-likely_wm(const char *nm)
+lwm(const char *nm)
 {
 	char *ep;
 	errno = 0;
@@ -418,6 +437,13 @@ likely_wm(const char *nm)
 	if (errno != 0 || *ep != '\0' || ep == nm)
 		return 0;
 	return (p >= MIN_WM_PID && p <= MAX_WM_PID);
+}
+
+static void
+alrm_h(int sig)
+{
+	(void)sig;
+	scan_to = 1;
 }
 
 static void
@@ -436,19 +462,33 @@ gwm(char *b, size_t z)
 		return;
 	}
 
-	time_t st = time(NULL);
+	struct sigaction sa = {0};
+	struct sigaction old;
+	sa.sa_handler = alrm_h;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+
+	if (sigaction(SIGALRM, &sa, &old) != 0) {
+		closedir(pr);
+		scpy(b, "unknown", z);
+		scpy(wm_cache, "unknown", sizeof(wm_cache));
+		wm_ok = 1;
+		return;
+	}
+
+	scan_to = 0;
+	alarm(WM_TIMEOUT);
+
 	struct dirent *e;
 	char cm[MAX_SMALL];
 	size_t dc = 0;
 
-	while ((e = readdir(pr))) {
+	while ((e = readdir(pr)) && !scan_to) {
 		if (++dc > MAX_SCAN)
-			break;
-		if (time(NULL) - st >= WM_TIMEOUT)
 			break;
 		if (e->d_name[0] < '0' || e->d_name[0] > '9')
 			continue;
-		if (!likely_wm(e->d_name))
+		if (!lwm(e->d_name))
 			continue;
 		if (rcomm(e->d_name, cm, sizeof(cm)) != 0)
 			continue;
@@ -463,12 +503,16 @@ gwm(char *b, size_t z)
 				scpy(b, wms[i].nm, z);
 				scpy(wm_cache, b, sizeof(wm_cache));
 				wm_ok = 1;
+				alarm(0);
+				sigaction(SIGALRM, &old, NULL);
 				closedir(pr);
 				return;
 			}
 		}
 	}
 
+	alarm(0);
+	sigaction(SIGALRM, &old, NULL);
 	closedir(pr);
 	scpy(b, "unknown", z);
 	scpy(wm_cache, "unknown", sizeof(wm_cache));
@@ -624,6 +668,29 @@ disp(const char *u, const char *h, const char *os, const char *k,
 	    COLOR_3, COLOR_RESET, tm);
 }
 
+static int
+rlim(void)
+{
+	struct rlimit lim;
+
+	lim.rlim_cur = 50 * 1024 * 1024;
+	lim.rlim_max = 50 * 1024 * 1024;
+	if (setrlimit(RLIMIT_AS, &lim) != 0)
+		return -1;
+
+	lim.rlim_cur = 5;
+	lim.rlim_max = 5;
+	if (setrlimit(RLIMIT_CPU, &lim) != 0)
+		return -1;
+
+	lim.rlim_cur = 128;
+	lim.rlim_max = 128;
+	if (setrlimit(RLIMIT_NOFILE, &lim) != 0)
+		return -1;
+
+	return 0;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -633,6 +700,10 @@ main(int argc, char **argv)
 	if (geteuid() != getuid() || getegid() != getgid()) {
 		if (setuid(getuid()) != 0 || setgid(getgid()) != 0)
 			return 1;
+	}
+
+	if (rlim() != 0) {
+		fprintf(stderr, "Warning: failed to apply resource limits\n");
 	}
 
 	setlocale(LC_ALL, "");
