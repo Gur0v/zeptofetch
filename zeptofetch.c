@@ -281,7 +281,7 @@ bchain(pid_t st, proc_t *o, size_t mx)
 	while (vpid(c) && i < mx) {
 		if (gproc(c, &o[i]) != 0)
 			break;
-		if (o[i].flg & F_PPID && o[i].ppid != c && o[i].ppid > 0) {
+		if (o[i].flg & F_PPID && o[i].ppid != c && vpid(o[i].ppid)) {
 			c = o[i].ppid;
 		} else {
 			break;
