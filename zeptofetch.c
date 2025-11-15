@@ -202,7 +202,6 @@ static int
 rexe(pid_t p, char *b, size_t z)
 {
 	char pt[PATH_MAX], tmp[PATH_MAX];
-	int ret = -1;
 
 	if (ppath(p, "exe", pt, sizeof(pt)) != 0)
 		return -1;
@@ -220,11 +219,10 @@ rexe(pid_t p, char *b, size_t z)
 		    strncmp(res, "/opt", 4) == 0 ||
 		    strncmp(res, "/home", 5) == 0)) {
 			scpy(b, res, z);
-			ret = 0;
+			free(res);
+			return 0;
 		}
 		free(res);
-		if (ret == 0)
-			return 0;
 		return -1;
 	}
 	scpy(b, tmp, z);
@@ -381,10 +379,7 @@ gterm(proc_t *ch, size_t n, char *b, size_t z)
 			continue;
 
 		if (mlst(bs, terms, ARRLEN(terms))) {
-			char fc = bs[0];
 			for (size_t j = 0; j < ARRLEN(terms); ++j) {
-				if (fc != terms[j].nm[0])
-					continue;
 				if (seq(bs, terms[j].nm) ||
 				    spfx(bs, terms[j].nm, terms[j].ln)) {
 					scpy(b, terms[j].nm, z);
@@ -493,10 +488,7 @@ gwm(char *b, size_t z)
 			continue;
 
 		if (mlst(cm, wms, ARRLEN(wms))) {
-			char fc = cm[0];
 			for (size_t i = 0; i < ARRLEN(wms); ++i) {
-				if (fc != wms[i].nm[0])
-					continue;
 				if (seq(cm, wms[i].nm) || spfx(cm, wms[i].nm, wms[i].ln)) {
 					scpy(b, wms[i].nm, z);
 					scpy(wm_cache, b, sizeof(wm_cache));
