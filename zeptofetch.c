@@ -20,9 +20,9 @@
 #define PATH_MAX 4096
 #endif
 
-#define VERSION "v1.10"
+#define VERSION "v1.11"
 #define CACHE_SZ 1024
-#define MAX_CHAIN 1000
+#define MAX_CHAIN 64
 #define MAX_LINE 64
 #define MAX_NAME 128
 #define MAX_SMALL 64
@@ -48,6 +48,11 @@ typedef struct {
 	uint8_t flg;
 } proc_t;
 
+typedef struct {
+	const char *nm;
+	size_t ln;
+} lst_t;
+
 #define F_EXE 1
 #define F_PPID 2
 #define F_ST 4
@@ -62,10 +67,7 @@ static char host_cache[MAX_SMALL] = {0};
 static int host_ok = 0;
 static volatile sig_atomic_t scan_to = 0;
 
-static const struct {
-	const char *nm;
-	size_t ln;
-} shells[] = {
+static const lst_t shells[] = {
 	{"bash", 4}, {"zsh", 3}, {"fish", 4}, {"dash", 4},
 	{"sh", 2}, {"ksh", 3}, {"tcsh", 4}, {"csh", 3},
 	{"elvish", 6}, {"nushell", 7}, {"xonsh", 5}, {"ion", 3},
@@ -74,10 +76,7 @@ static const struct {
 	{"oksh", 4}, {"pdksh", 5},
 };
 
-static const struct {
-	const char *nm;
-	size_t ln;
-} terms[] = {
+static const lst_t terms[] = {
 	{"alacritty", 9}, {"kitty", 5}, {"wezterm", 7}, {"gnome-terminal", 14},
 	{"konsole", 7}, {"xfce4-terminal", 14}, {"foot", 4}, {"ghostty", 7},
 	{"terminator", 10}, {"xterm", 5}, {"urxvt", 5}, {"st", 2},
@@ -92,10 +91,7 @@ static const struct {
 	{"termine", 7}, {"wterm", 5}, {"xvt", 3}, {"yaft", 4},
 };
 
-static const struct {
-	const char *nm;
-	size_t ln;
-} wms[] = {
+static const lst_t wms[] = {
 	{"Hyprland", 8}, {"sway", 4}, {"kwin", 4}, {"mutter", 6},
 	{"openbox", 7}, {"i3", 2}, {"bspwm", 5}, {"awesome", 7},
 	{"dwm", 3}, {"xmonad", 6}, {"muffin", 6}, {"marco", 5},
@@ -121,12 +117,10 @@ scpy(char *d, const char *s, size_t z)
 {
 	if (!d || !s || z == 0)
 		return;
-	size_t i;
-	for (i = 0; i < z - 1 && s[i] != '\0'; i++) {
-		if (s[i] >= 32 && s[i] <= 126)
-			d[i] = s[i];
-		else
-			d[i] = '_';
+	size_t i = 0;
+	while (i < z - 1 && s[i]) {
+		d[i] = (s[i] >= 32 && s[i] <= 126) ? s[i] : '_';
+		i++;
 	}
 	d[i] = '\0';
 }
@@ -164,16 +158,8 @@ static proc_t *
 cget(pid_t p)
 {
 	for (size_t i = 0; i < cache_n; ++i) {
-		if (cache[i].pid == p) {
-			if (!(cache[i].flg & F_ST))
-				return &cache[i];
-			unsigned long long st;
-			if (gst(p, &st) != 0)
-				return NULL;
-			if (st != cache[i].st)
-				return NULL;
+		if (cache[i].pid == p)
 			return &cache[i];
-		}
 	}
 	return NULL;
 }
@@ -221,18 +207,14 @@ rexe(pid_t p, char *b, size_t z)
 
 	char *res = realpath(tmp, NULL);
 	if (res) {
-		struct stat st;
-		if (stat(res, &st) == 0) {
-			if (S_ISREG(st.st_mode) || S_ISDIR(st.st_mode)) {
-				if (strncmp(res, "/usr", 4) == 0 ||
-				    strncmp(res, "/bin", 4) == 0 ||
-				    strncmp(res, "/sbin", 5) == 0 ||
-				    strncmp(res, "/opt", 4) == 0 ||
-				    strncmp(res, "/home", 5) == 0) {
-					scpy(b, res, z);
-					ret = 0;
-				}
-			}
+		if (res[0] == '/' && (
+		    strncmp(res, "/usr", 4) == 0 ||
+		    strncmp(res, "/bin", 4) == 0 ||
+		    strncmp(res, "/sbin", 5) == 0 ||
+		    strncmp(res, "/opt", 4) == 0 ||
+		    strncmp(res, "/home", 5) == 0)) {
+			scpy(b, res, z);
+			ret = 0;
 		}
 		free(res);
 		if (ret == 0)
@@ -290,7 +272,7 @@ bchain(pid_t st, proc_t *o, size_t mx)
 	size_t i = 0;
 	pid_t c = st;
 
-	while (vpid(c) && i < mx && i < MAX_CHAIN) {
+	while (vpid(c) && i < mx) {
 		if (gproc(c, &o[i]) != 0)
 			break;
 		if (o[i].flg & F_PPID && o[i].ppid != c && o[i].ppid > 0) {
@@ -316,16 +298,23 @@ spfx(const char *s, const char *p, size_t pl)
 }
 
 static int
-issh(const char *n)
+mlst(const char *n, const lst_t *l, size_t ln)
 {
 	if (!n || !*n)
 		return 0;
 	char fc = n[0];
-	for (size_t i = 0; i < ARRLEN(shells); ++i) {
-		if (fc == shells[i].nm[0] && seq(n, shells[i].nm))
+	for (size_t i = 0; i < ln; ++i) {
+		if (fc == l[i].nm[0] && 
+		    (seq(n, l[i].nm) || spfx(n, l[i].nm, l[i].ln)))
 			return 1;
 	}
 	return 0;
+}
+
+static int
+issh(const char *n)
+{
+	return mlst(n, shells, ARRLEN(shells));
 }
 
 static void
@@ -385,14 +374,16 @@ gterm(proc_t *ch, size_t n, char *b, size_t z)
 		if (issh(bs))
 			continue;
 
-		char fc = bs[0];
-		for (size_t j = 0; j < ARRLEN(terms); ++j) {
-			if (fc != terms[j].nm[0])
-				continue;
-			if (seq(bs, terms[j].nm) ||
-			    spfx(bs, terms[j].nm, terms[j].ln)) {
-				scpy(b, terms[j].nm, z);
-				return;
+		if (mlst(bs, terms, ARRLEN(terms))) {
+			char fc = bs[0];
+			for (size_t j = 0; j < ARRLEN(terms); ++j) {
+				if (fc != terms[j].nm[0])
+					continue;
+				if (seq(bs, terms[j].nm) ||
+				    spfx(bs, terms[j].nm, terms[j].ln)) {
+					scpy(b, terms[j].nm, z);
+					return;
+				}
 			}
 		}
 
@@ -495,18 +486,20 @@ gwm(char *b, size_t z)
 		if (cm[0] == '\0')
 			continue;
 
-		char fc = cm[0];
-		for (size_t i = 0; i < ARRLEN(wms); ++i) {
-			if (fc != wms[i].nm[0])
-				continue;
-			if (seq(cm, wms[i].nm) || spfx(cm, wms[i].nm, wms[i].ln)) {
-				scpy(b, wms[i].nm, z);
-				scpy(wm_cache, b, sizeof(wm_cache));
-				wm_ok = 1;
-				alarm(0);
-				sigaction(SIGALRM, &old, NULL);
-				closedir(pr);
-				return;
+		if (mlst(cm, wms, ARRLEN(wms))) {
+			char fc = cm[0];
+			for (size_t i = 0; i < ARRLEN(wms); ++i) {
+				if (fc != wms[i].nm[0])
+					continue;
+				if (seq(cm, wms[i].nm) || spfx(cm, wms[i].nm, wms[i].ln)) {
+					scpy(b, wms[i].nm, z);
+					scpy(wm_cache, b, sizeof(wm_cache));
+					wm_ok = 1;
+					alarm(0);
+					sigaction(SIGALRM, &old, NULL);
+					closedir(pr);
+					return;
+				}
 			}
 		}
 	}
@@ -553,40 +546,26 @@ gos(char *b, size_t z)
 	FILE *f = fopen("/etc/os-release", "r");
 	if (!f) {
 		scpy(b, "Linux", z);
-		scpy(os_cache, "Linux", sizeof(os_cache));
-		os_ok = 1;
-		return;
+		goto done;
 	}
 
 	char ln[MAX_LINE];
-	char pr[MAX_LINE] = {0};
-	char nm[MAX_LINE] = {0};
-	int fp = 0;
-	int fn = 0;
+	b[0] = '\0';
 
 	while (fgets(ln, sizeof(ln), f)) {
-		if (!fp && parse_os("PRETTY_NAME=", 12, ln, pr, sizeof(pr)) == 0) {
-			fp = 1;
+		if (parse_os("PRETTY_NAME=", 12, ln, b, z) == 0)
 			break;
-		}
-		if (!fn && parse_os("NAME=", 5, ln, nm, sizeof(nm)) == 0) {
-			fn = 1;
-		}
+		if (b[0] == '\0')
+			parse_os("NAME=", 5, ln, b, z);
 	}
 
-	if (fp) {
-		scpy(b, pr, z);
-		scpy(os_cache, pr, sizeof(os_cache));
-	} else if (fn) {
-		scpy(b, nm, z);
-		scpy(os_cache, nm, sizeof(os_cache));
-	} else {
+	if (b[0] == '\0')
 		scpy(b, "Linux", z);
-		scpy(os_cache, "Linux", sizeof(os_cache));
-	}
 
-	os_ok = 1;
 	fclose(f);
+done:
+	scpy(os_cache, b, sizeof(os_cache));
+	os_ok = 1;
 }
 
 static void
@@ -729,9 +708,9 @@ main(int argc, char **argv)
 	guser(u, sizeof(u));
 	ghost(h, sizeof(h));
 
-	proc_t ch[CACHE_SZ];
+	proc_t ch[MAX_CHAIN];
 	cache_n = 0;
-	size_t n = bchain(getpid(), ch, CACHE_SZ);
+	size_t n = bchain(getpid(), ch, MAX_CHAIN);
 
 	gsh(ch, n, sh, sizeof(sh));
 	gterm(ch, n, tm, sizeof(tm));
