@@ -189,7 +189,13 @@ rppid(pid_t p, pid_t *o)
 		return -1;
 	int ok = fscanf(f, "%*d %*s %*c %d", o);
 	fclose(f);
-	return (ok == 1) ? 0 : -1;
+	if (ok != 1)
+		return -1;
+	if (!vpid(*o)) {
+		*o = -1;
+		return -1;
+	}
+	return 0;
 }
 
 static int
