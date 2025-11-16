@@ -144,13 +144,11 @@ sudo make install
 
 Contributions are welcome! Here's how you can help:
 
-- 🐛 [Report bugs](https://github.com/Gur0v/zeptofetch/issues)
-- 💡 [Suggest features](https://github.com/Gur0v/zeptofetch/issues)
+- 🐛 [Report bugs](https://gitlab.archlinux.org/gurov/zeptofetch/-/issues)
+- 💡 [Suggest features](https://gitlab.archlinux.org/gurov/zeptofetch/-/issues)
 - 📝 Improve documentation
 - 🔧 Submit pull requests
 - 🧪 Test on new distributions
-
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting PRs.
 
 ## 📜 License
 
@@ -160,7 +158,7 @@ Licensed under [GPL-3.0](LICENSE)
 
 <div align="center">
 
-**Made with ⚡ by [Gur0v](https://github.com/Gur0v)**
+**Made with ⚡ by [Gurov](https://gitlab.archlinux.org/gurov)**
 
 [⬆ Back to top](#-zeptofetch)
 
