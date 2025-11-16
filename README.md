@@ -1,5 +1,15 @@
 <div align="center">
 
+> **⚠️ Archive Notice**  
+> This GitHub repository is being archived. Development has moved to the Arch Linux GitLab instance.  
+> **New home:** https://gitlab.archlinux.org/gurov/zeptofetch  
+> 
+> *I want my actually free program to be on an actually free git instance.*
+
+</div>
+
+<div align="center">
+
 # ⚡ zeptofetch
 
 *Blazingly fast, ultra-minimal system information tool for Linux*
