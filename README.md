@@ -4,13 +4,6 @@
 
 *Blazingly fast, ultra-minimal system information tool for Linux*
 
-[![License](https://img.shields.io/github/license/Gur0v/zeptofetch)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/stargazers)
-[![Platform](https://img.shields.io/badge/platform-linux-blue)](#compatibility)
-[![Version](https://img.shields.io/github/v/release/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/releases)
-[![Issues](https://img.shields.io/github/issues/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/issues)
-[![Pull Requests](https://img.shields.io/github/issues-pr/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/pulls)
-
 ![zeptofetch v1.9](https://roblo-x.com/pxf02euc.webp)
 
 [Features](#features) • [Benchmarks](#benchmarks) • [Installation](#installation) • [Usage](#usage) • [Configuration](#configuration)
@@ -59,22 +52,20 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine) on the following s
 | fastfetch      | 6.7ms ± 1.0ms         | ~200 KB     | `61x faster`          |
 | neofetch       | 405.1ms ± 21.0ms      | ~50 KB      | *baseline*            |
 
-<sub>*_Performance varies based on hardware, system load, CPU scheduler, kernel, desktop environment, and terminal emulator. Benchmarks shown are from prebuilt binary v1.9. For optimal and consistent performance tailored to your system, I recommend compiling from source._</sub>
+<sub>*_Performance varies based on hardware, system load, CPU scheduler, kernel, desktop environment, and terminal emulator. Benchmarks shown are from zeptofetch version v1.9._</sub>
 
 ## 🚀 Installation
 
-### Recommended: Manual Compilation
+### Manual Compilation
 
 For best performance and smallest binary size, compile manually with your system's native optimizations:
 
 ```bash
-git clone https://github.com/Gur0v/zeptofetch
+git clone https://gitlab.archlinux.org/gurov/zeptofetch.git
 cd zeptofetch
 make
 sudo make install
 ```
-
-This builds with `-march=native` for maximum performance on your specific CPU.
 
 ### Arch Linux (AUR)
 
@@ -82,15 +73,8 @@ For Arch Linux users, zeptofetch is available in the AUR:
 
 ```bash
 paru -S zeptofetch        # Build from source
-paru -S zeptofetch-bin    # Prebuilt binary
 paru -S zeptofetch-git    # Latest from git
 ```
-
-### Alternative: Prebuilt Releases
-
-Prebuilt binaries are available on the [Releases](https://github.com/Gur0v/zeptofetch/releases) page. These are primarily intended for packaging and distribution, compiled with `-march=x86-64-v3` for broader compatibility.
-
-**Manual compilation is strongly recommended** for optimal performance.
 
 ## 📖 Usage
 
