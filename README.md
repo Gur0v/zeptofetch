@@ -3,6 +3,7 @@
 # ⚡ zeptofetch
 
 *Blazingly fast, ultra-minimal system information tool for Linux*
+*https://gitlab.archlinux.org/gurov/zeptofetch*
 
 [![License](https://img.shields.io/github/license/Gur0v/zeptofetch)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/Gur0v/zeptofetch)](https://github.com/Gur0v/zeptofetch/stargazers)
