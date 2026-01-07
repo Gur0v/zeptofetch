@@ -1,5 +1,6 @@
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <locale.h>
 #include <pwd.h>
@@ -8,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
@@ -20,8 +22,8 @@
 #define PATH_MAX 4096
 #endif
 
-#define VERSION "v1.11"
-#define CACHE_SZ 1024
+#define VERSION "v1.12"
+#define CACHE_SZ 256
 #define MAX_CHAIN 64
 #define MAX_LINE 64
 #define MAX_NAME 128
@@ -30,7 +32,8 @@
 #define WM_TIMEOUT 1
 #define MIN_WM_PID 300
 #define MAX_WM_PID 100000
-#define MAX_SCAN 50000
+#define MAX_SCAN 30000
+#define PROC_BUF 2048
 #define ARRLEN(a) (sizeof(a) / sizeof((a)[0]))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
@@ -57,7 +60,7 @@ typedef struct {
 #define F_PPID 2
 #define F_ST 4
 
-static proc_t cache[CACHE_SZ];
+static proc_t *cache = NULL;
 static size_t cache_n = 0;
 static char wm_cache[MAX_SMALL] = {0};
 static int wm_ok = 0;
@@ -139,19 +142,43 @@ ppath(pid_t p, const char *f, char *b, size_t z)
 }
 
 static int
-gst(pid_t p, unsigned long long *o)
+gst(pid_t pid, unsigned long long *o)
 {
 	char pt[64];
-	if (ppath(p, "stat", pt, sizeof(pt)) != 0)
+	if (ppath(pid, "stat", pt, sizeof(pt)) != 0)
 		return -1;
-	FILE *f = fopen(pt, "r");
-	if (!f)
+
+	int fd = open(pt, O_RDONLY);
+	if (fd < 0)
 		return -1;
-	int ok = fscanf(f, "%*d %*s %*c %*d %*d %*d %*d %*d %*u "
-	                   "%*u %*u %*u %*u %*u %*u %*d %*d %*d "
-	                   "%*d %*d %*d %llu", o);
-	fclose(f);
-	return (ok == 1) ? 0 : -1;
+
+	char buf[PROC_BUF];
+	ssize_t r = read(fd, buf, sizeof(buf) - 1);
+	close(fd);
+
+	if (r <= 0)
+		return -1;
+
+	buf[r] = '\0';
+
+	char *ptr = strrchr(buf, ')');
+	if (!ptr)
+		return -1;
+
+	int cnt = 0;
+	while (*ptr && cnt < 19) {
+		if (*ptr == ' ')
+			cnt++;
+		ptr++;
+	}
+
+	if (cnt != 19)
+		return -1;
+
+	if (sscanf(ptr, "%llu", o) != 1)
+		return -1;
+
+	return 0;
 }
 
 static proc_t *
@@ -179,35 +206,54 @@ cadd(pid_t p)
 }
 
 static int
-rppid(pid_t p, pid_t *o)
+rppid(pid_t pid, pid_t *o)
 {
 	char pt[64];
-	if (ppath(p, "stat", pt, sizeof(pt)) != 0)
+	if (ppath(pid, "stat", pt, sizeof(pt)) != 0)
 		return -1;
-	FILE *f = fopen(pt, "r");
-	if (!f)
+
+	int fd = open(pt, O_RDONLY);
+	if (fd < 0)
 		return -1;
-	int ok = fscanf(f, "%*d %*s %*c %d", o);
-	fclose(f);
-	if (ok != 1)
+
+	char buf[PROC_BUF];
+	ssize_t r = read(fd, buf, sizeof(buf) - 1);
+	close(fd);
+
+	if (r <= 0)
 		return -1;
-	if (!vpid(*o)) {
+
+	buf[r] = '\0';
+
+	char *ptr = strchr(buf, ')');
+	if (!ptr || ptr[1] != ' ' || ptr[2] == '\0')
+		return -1;
+
+	int ppid;
+	if (sscanf(ptr + 2, "%*c %d", &ppid) != 1)
+		return -1;
+
+	if (!vpid(ppid)) {
 		*o = -1;
 		return -1;
 	}
+
+	*o = ppid;
 	return 0;
 }
 
 static int
-rexe(pid_t p, char *b, size_t z)
+rexe(pid_t pid, char *b, size_t z)
 {
 	char pt[PATH_MAX], tmp[PATH_MAX];
 
-	if (ppath(p, "exe", pt, sizeof(pt)) != 0)
+	if (ppath(pid, "exe", pt, sizeof(pt)) != 0)
 		return -1;
+
 	ssize_t l = readlink(pt, tmp, sizeof(tmp) - 1);
 	if (l <= 0)
 		return -1;
+
 	tmp[l] = '\0';
 
 	char *res = realpath(tmp, NULL);
@@ -230,37 +276,37 @@ rexe(pid_t p, char *b, size_t z)
 }
 
 static int
-gproc(pid_t p, proc_t *pr)
+gproc(pid_t pid, proc_t *pr)
 {
-	if (!vpid(p))
+	if (!vpid(pid))
 		return -1;
 
-	proc_t *c = cget(p);
+	proc_t *c = cget(pid);
 	if (c) {
 		if (pr != c)
 			*pr = *c;
 		return 0;
 	}
 
-	proc_t *e = cadd(p);
+	proc_t *e = cadd(pid);
 	if (!e)
 		return -1;
 
-	e->pid = p;
+	e->pid = pid;
 
 	unsigned long long st;
-	if (gst(p, &st) == 0) {
+	if (gst(pid, &st) == 0) {
 		e->st = st;
 		e->flg |= F_ST;
 	}
 
-	if (rppid(p, &e->ppid) == 0) {
+	if (rppid(pid, &e->ppid) == 0) {
 		e->flg |= F_PPID;
 	} else {
 		e->ppid = -1;
 	}
 
-	if (rexe(p, e->exe, sizeof(e->exe)) == 0) {
+	if (rexe(pid, e->exe, sizeof(e->exe)) == 0) {
 		e->flg |= F_EXE;
 	} else {
 		e->exe[0] = '\0';
@@ -292,19 +338,19 @@ bchain(pid_t st, proc_t *o, size_t mx)
 static inline int
 seq(const char *a, const char *b)
 {
-	return strcmp(a, b) == 0;
+	return a && b && strcmp(a, b) == 0;
 }
 
 static inline int
 spfx(const char *s, const char *p, size_t pl)
 {
-	return strncmp(s, p, pl) == 0;
+	return s && p && strncmp(s, p, pl) == 0;
 }
 
 static int
 mlst(const char *n, const lst_t *l, size_t ln)
 {
-	if (!n || !*n)
+	if (!n || !*n || !l || ln == 0)
 		return 0;
 	char fc = n[0];
 	for (size_t i = 0; i < ln; ++i) {
@@ -324,6 +370,8 @@ issh(const char *n)
 static void
 bname(const char *pt, char *o, size_t z)
 {
+	if (!pt || !o || z == 0)
+		return;
 	const char *b = strrchr(pt, '/');
 	scpy(o, b ? b + 1 : pt, z);
 }
@@ -354,6 +402,12 @@ ghost(char *b, size_t z)
 static void
 gsh(proc_t *ch, size_t n, char *b, size_t z)
 {
+	char *env = getenv("SHELL");
+	if (env && *env) {
+		bname(env, b, z);
+		return;
+	}
+
 	char bs[MAX_NAME];
 	for (size_t i = 0; i < n; ++i) {
 		if (!(ch[i].flg & F_EXE))
@@ -370,6 +424,18 @@ gsh(proc_t *ch, size_t n, char *b, size_t z)
 static void
 gterm(proc_t *ch, size_t n, char *b, size_t z)
 {
+	char *env = getenv("TERM_PROGRAM");
+	if (env && *env) {
+		scpy(b, env, z);
+		return;
+	}
+
+	env = getenv("TERMINAL");
+	if (env && *env) {
+		bname(env, b, z);
+		return;
+	}
+
 	char bs[MAX_NAME];
 	for (size_t i = 1; i < n; ++i) {
 		if (!(ch[i].flg & F_EXE))
@@ -404,25 +470,29 @@ rcomm(const char *ps, char *cm, size_t z)
 	if (n < 0 || (size_t)n >= sizeof(pt))
 		return -1;
 
-	FILE *f = fopen(pt, "r");
-	if (!f)
+	int fd = open(pt, O_RDONLY);
+	if (fd < 0)
 		return -1;
 
-	if (!fgets(cm, z, f)) {
-		fclose(f);
-		return -1;
-	}
-	fclose(f);
+	ssize_t r = read(fd, cm, z - 1);
+	close(fd);
 
+	if (r <= 0)
+		return -1;
+
+	cm[r] = '\0';
 	size_t l = strnlen(cm, z);
 	if (l > 0 && cm[l - 1] == '\n')
 		cm[l - 1] = '\0';
+
 	return 0;
 }
 
 static int
 lwm(const char *nm)
 {
+	if (!nm || !*nm)
+		return 0;
 	char *ep;
 	errno = 0;
 	unsigned long p = strtoul(nm, &ep, 10);
@@ -438,6 +508,20 @@ alrm_h(int sig)
 	scan_to = 1;
 }
 
+static int
+cmp_de(const struct dirent **a, const struct dirent **b)
+{
+	unsigned long na = strtoul((*a)->d_name, NULL, 10);
+	unsigned long nb = strtoul((*b)->d_name, NULL, 10);
+	return (nb < na) - (na < nb);
+}
+
+static int
+flt_de(const struct dirent *e)
+{
+	return e->d_name[0] >= '0' && e->d_name[0] <= '9' && lwm(e->d_name);
+}
+
 static void
 gwm(char *b, size_t z)
 {
@@ -446,8 +530,10 @@ gwm(char *b, size_t z)
 		return;
 	}
 
-	DIR *pr = opendir("/proc");
-	if (!pr) {
+	struct dirent **lst = NULL;
+	int n = scandir("/proc", &lst, flt_de, cmp_de);
+	
+	if (n < 0) {
 		scpy(b, "unknown", z);
 		scpy(wm_cache, "unknown", sizeof(wm_cache));
 		wm_ok = 1;
@@ -461,7 +547,9 @@ gwm(char *b, size_t z)
 	sa.sa_flags = 0;
 
 	if (sigaction(SIGALRM, &sa, &old) != 0) {
-		closedir(pr);
+		for (int i = 0; i < n; i++)
+			free(lst[i]);
+		free(lst);
 		scpy(b, "unknown", z);
 		scpy(wm_cache, "unknown", sizeof(wm_cache));
 		wm_ok = 1;
@@ -471,31 +559,26 @@ gwm(char *b, size_t z)
 	scan_to = 0;
 	alarm(WM_TIMEOUT);
 
-	struct dirent *e;
 	char cm[MAX_SMALL];
-	size_t dc = 0;
+	int lim = (n < MAX_SCAN) ? n : MAX_SCAN;
 
-	while ((e = readdir(pr)) && !scan_to) {
-		if (++dc > MAX_SCAN)
-			break;
-		if (e->d_name[0] < '0' || e->d_name[0] > '9')
-			continue;
-		if (!lwm(e->d_name))
-			continue;
-		if (rcomm(e->d_name, cm, sizeof(cm)) != 0)
+	for (int i = 0; i < lim && !scan_to; i++) {
+		if (rcomm(lst[i]->d_name, cm, sizeof(cm)) != 0)
 			continue;
 		if (cm[0] == '\0')
 			continue;
 
 		if (mlst(cm, wms, ARRLEN(wms))) {
-			for (size_t i = 0; i < ARRLEN(wms); ++i) {
-				if (seq(cm, wms[i].nm) || spfx(cm, wms[i].nm, wms[i].ln)) {
-					scpy(b, wms[i].nm, z);
+			for (size_t j = 0; j < ARRLEN(wms); ++j) {
+				if (seq(cm, wms[j].nm) || spfx(cm, wms[j].nm, wms[j].ln)) {
+					scpy(b, wms[j].nm, z);
 					scpy(wm_cache, b, sizeof(wm_cache));
 					wm_ok = 1;
 					alarm(0);
 					sigaction(SIGALRM, &old, NULL);
-					closedir(pr);
+					for (int k = 0; k < n; k++)
+						free(lst[k]);
+					free(lst);
 					return;
 				}
 			}
@@ -504,7 +587,9 @@ gwm(char *b, size_t z)
 
 	alarm(0);
 	sigaction(SIGALRM, &old, NULL);
-	closedir(pr);
+	for (int i = 0; i < n; i++)
+		free(lst[i]);
+	free(lst);
 	scpy(b, "unknown", z);
 	scpy(wm_cache, "unknown", sizeof(wm_cache));
 	wm_ok = 1;
@@ -604,6 +689,8 @@ pver(void)
 static void
 san_rel(char *d, size_t z, const char *s)
 {
+	if (!d || !s || z == 0)
+		return;
 	size_t i = 0;
 	while (i < z - 1 && s[i] != '\0' && s[i] != ' ') {
 		d[i] = s[i];
@@ -668,6 +755,15 @@ rlim(void)
 	return 0;
 }
 
+static void
+cleanup(void)
+{
+	if (cache) {
+		munmap(cache, CACHE_SZ * sizeof(proc_t));
+		cache = NULL;
+	}
+}
+
 int
 main(int argc, char **argv)
 {
@@ -683,11 +779,21 @@ main(int argc, char **argv)
 		fprintf(stderr, "Warning: failed to apply resource limits\n");
 	}
 
+	cache = mmap(NULL, CACHE_SZ * sizeof(proc_t),
+	    PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (cache == MAP_FAILED) {
+		fprintf(stderr, "Error: failed to allocate cache\n");
+		return 1;
+	}
+
+	atexit(cleanup);
+
 	setlocale(LC_ALL, "");
 
 	if (argc > 1) {
 		if (seq(argv[1], "--version") || seq(argv[1], "-v")) {
 			pver();
+			cleanup();
 			return 0;
 		}
 	}
@@ -717,5 +823,6 @@ main(int argc, char **argv)
 
 	disp(u, h, os, inf.release, sh, wm, tm);
 
+	cleanup();
 	return 0;
 }
