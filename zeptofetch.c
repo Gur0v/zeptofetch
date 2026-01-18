@@ -22,7 +22,7 @@
 #define PATH_MAX 4096
 #endif
 
-#define VERSION "v1.12"
+#define VERSION "v1.13"
 #define CACHE_SZ 256
 #define MAX_CHAIN 64
 #define MAX_LINE 64
@@ -69,6 +69,8 @@ static int os_ok = 0;
 static char host_cache[MAX_SMALL] = {0};
 static int host_ok = 0;
 static volatile sig_atomic_t scan_to = 0;
+
+static int is_wsl_cached = -1;
 
 static const lst_t shells[] = {
 	{"bash", 4}, {"zsh", 3}, {"fish", 4}, {"dash", 4},
@@ -463,6 +465,81 @@ gterm(proc_t *ch, size_t n, char *b, size_t z)
 }
 
 static int
+is_wsl(void)
+{
+	if (is_wsl_cached != -1)
+		return is_wsl_cached;
+
+	is_wsl_cached = 0;
+
+	int fd = open("/proc/sys/kernel/osrelease", O_RDONLY);
+	if (fd >= 0) {
+		char buf[256];
+		ssize_t r = read(fd, buf, sizeof(buf) - 1);
+		close(fd);
+		if (r > 0) {
+			buf[r] = '\0';
+			if (strstr(buf, "WSL") || strstr(buf, "microsoft")) {
+				is_wsl_cached = 1;
+				return 1;
+			}
+		}
+	}
+
+	fd = open("/proc/version", O_RDONLY);
+	if (fd >= 0) {
+		char buf[512];
+		ssize_t r = read(fd, buf, sizeof(buf) - 1);
+		close(fd);
+		if (r > 0) {
+			buf[r] = '\0';
+			if (strstr(buf, "Microsoft") || strstr(buf, "WSL")) {
+				is_wsl_cached = 1;
+				return 1;
+			}
+		}
+	}
+
+	return 0;
+}
+
+static void
+gwm_wsl(char *b, size_t z)
+{
+	char *wayland = getenv("WAYLAND_DISPLAY");
+	if (wayland && *wayland) {
+		scpy(b, "WSLg", z);
+		return;
+	}
+
+	char *display = getenv("DISPLAY");
+	if (display && *display) {
+		scpy(b, "WSLg", z);
+		return;
+	}
+
+	scpy(b, "unknown", z);
+}
+
+static void
+gterm_wsl(char *b, size_t z)
+{
+	char *wt_session = getenv("WT_SESSION");
+	if (wt_session && *wt_session) {
+		scpy(b, "Windows Terminal", z);
+		return;
+	}
+
+	char *wt_profile = getenv("WT_PROFILE_ID");
+	if (wt_profile && *wt_profile) {
+		scpy(b, "Windows Terminal", z);
+		return;
+	}
+
+	b[0] = '\0';
+}
+
+static int
 rcomm(const char *ps, char *cm, size_t z)
 {
 	char pt[PATH_MAX];
@@ -817,9 +894,20 @@ main(int argc, char **argv)
 	size_t n = bchain(getpid(), ch, MAX_CHAIN);
 
 	gsh(ch, n, sh, sizeof(sh));
-	gterm(ch, n, tm, sizeof(tm));
-	gwm(wm, sizeof(wm));
 	gos(os, sizeof(os));
+
+	if (is_wsl()) {
+		gterm_wsl(tm, sizeof(tm));
+		if (tm[0] == '\0')
+			gterm(ch, n, tm, sizeof(tm));
+
+		gwm_wsl(wm, sizeof(wm));
+		if (seq(wm, "unknown"))
+			gwm(wm, sizeof(wm));
+	} else {
+		gterm(ch, n, tm, sizeof(tm));
+		gwm(wm, sizeof(wm));
+	}
 
 	disp(u, h, os, inf.release, sh, wm, tm);
 
