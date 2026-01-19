@@ -90,8 +90,7 @@ zeptofetch -v
 The `--version` flag displays:
 - Version number and license information
 - Build date, time, and compiler used
-- Target architecture
-- Configuration constants (cache size, limits)
+- Configuration constants (cache size, chain depth, path max, PID max, WM timeout)
 
 ## ⚙️ Configuration
 
