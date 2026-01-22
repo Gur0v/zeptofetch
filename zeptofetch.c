@@ -1,8 +1,5 @@
 #include <dirent.h>
-#include <errno.h>
 #include <fcntl.h>
-#include <limits.h>
-#include <locale.h>
 #include <pwd.h>
 #include <signal.h>
 #include <stdint.h>
@@ -18,51 +15,51 @@
 #include <unistd.h>
 #include "config.h"
 
-#define VER         "v1.14-rc1"
-#define CPR         "2026"
+#define VERSION     "v1.14"
+#define COPYRIGHT   "2026"
 
 #ifndef PATH_MAX
 #define PATH_MAX    4096
 #endif
 
-#define CSZ         256
-#define MCHN        64
-#define MLN         64
-#define MNM         128
-#define MSM         64
-#define PIDMX       4194304
-#define WMTO        1
-#define WMPMIN      300
-#define WMPMAX      100000
-#define SCNMX       30000
-#define PBUF        2048
+#define CACHE_MAX   256
+#define CHAIN_MAX   64
+#define LINE_MAX    128
+#define MAX_NAME    64
+#define PID_LIMIT   4194304
+#define WM_TIMEOUT  1
+#define WM_PID_MIN  300
+#define WM_PID_MAX  100000
+#define SCAN_MAX    512
+#define PROC_BUF    1024
 
-#define F_EXE       1
-#define F_PP        2
-#define F_ST        4
+#define FL_EXE      1
+#define FL_PPID     2
+#define FL_TIME     4
 
-#define ALEN(a)     (sizeof(a) / sizeof((a)[0]))
+#define ARRLEN(a)   (sizeof(a) / sizeof((a)[0]))
 #define MIN(a, b)   ((a) < (b) ? (a) : (b))
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-_Static_assert(CSZ <= PIDMX, "cache > pid space");
+_Static_assert(CACHE_MAX <= PID_LIMIT, "cache > pid space");
 #else
-typedef char sz_chk[(CSZ <= PIDMX) ? 1 : -1];
+typedef char sz_chk[(CACHE_MAX <= PID_LIMIT) ? 1 : -1];
 #endif
 
 typedef struct {
-    pid_t p, pp;
+    pid_t pid;
+    pid_t ppid;
     char exe[PATH_MAX];
-    unsigned long long t;
-    uint8_t f;
+    unsigned long long time;
+    uint8_t flags;
 } proc_t;
 
 typedef struct {
-    const char *s;
-    size_t l;
-} lst_t;
+    const char *id;
+    size_t len;
+} match_t;
 
-static const lst_t shs[] = {
+static const match_t shells[] = {
     {"bash", 4}, {"zsh", 3}, {"fish", 4}, {"dash", 4},
     {"sh", 2}, {"ksh", 3}, {"tcsh", 4}, {"csh", 3},
     {"elvish", 6}, {"nushell", 7}, {"xonsh", 5}, {"ion", 3},
@@ -71,7 +68,7 @@ static const lst_t shs[] = {
     {"oksh", 4}, {"pdksh", 5},
 };
 
-static const lst_t trms[] = {
+static const match_t terms[] = {
     {"alacritty", 9}, {"kitty", 5}, {"wezterm", 7}, {"gnome-terminal", 14},
     {"konsole", 7}, {"xfce4-terminal", 14}, {"foot", 4}, {"ghostty", 7},
     {"terminator", 10}, {"xterm", 5}, {"urxvt", 5}, {"st", 2},
@@ -86,7 +83,7 @@ static const lst_t trms[] = {
     {"termine", 7}, {"wterm", 5}, {"xvt", 3}, {"yaft", 4},
 };
 
-static const lst_t wms[] = {
+static const match_t wms[] = {
     {"Hyprland", 8}, {"sway", 4}, {"kwin", 4}, {"mutter", 6},
     {"openbox", 7}, {"i3", 2}, {"bspwm", 5}, {"awesome", 7},
     {"dwm", 3}, {"xmonad", 6}, {"muffin", 6}, {"marco", 5},
@@ -107,497 +104,607 @@ static const lst_t wms[] = {
     {"wmx", 3}, {"acme", 4},
 };
 
-static proc_t *che = NULL;
-static size_t che_n = 0;
-static char wmb[MSM] = {0};
-static int wmk = 0;
-static char osb[MNM] = {0};
-static int osk = 0;
-static char hsb[MSM] = {0};
-static int hsk = 0;
-static int wslk = -1;
-static volatile sig_atomic_t stop = 0;
+static proc_t *cache = NULL;
+static size_t cache_len = 0;
+static char wm_buf[NAME_MAX] = {0};
+static int wm_ok = 0;
+static char os_buf[LINE_MAX] = {0};
+static int os_ok = 0;
+static char host_buf[NAME_MAX] = {0};
+static int host_ok = 0;
+static int wsl_ok = -1;
+static volatile sig_atomic_t stop_scan = 0;
 
-static void
-scpy(char *d, const char *s, size_t z)
+static inline void
+str_cpy(char *dst, const char *src, size_t max)
 {
-    if (!d || !s || z == 0) return;
+    if (!dst || !src || !max) return;
     size_t i = 0;
-    while (i < z - 1 && s[i]) {
-        d[i] = (s[i] >= 32 && s[i] <= 126) ? s[i] : '_';
+    while (i < max - 1 && src[i]) {
+        dst[i] = (src[i] >= 32 && src[i] <= 126) ? src[i] : '_';
         i++;
     }
-    d[i] = '\0';
+    dst[i] = '\0';
 }
 
-static int
-vpid(pid_t p)
+static inline int
+valid_pid(pid_t pid)
 {
-    return p > 0 && p <= PIDMX;
+    return pid > 0 && pid <= PID_LIMIT;
 }
 
-static int
-ppath(pid_t p, const char *f, char *b, size_t z)
+static void
+make_path(pid_t pid, const char *file, char *buf)
 {
-    int n = snprintf(b, z, "/proc/%d/%s", p, f);
-    return (n < 0 || (size_t)n >= z) ? -1 : 0;
-}
+    memcpy(buf, "/proc/", 6);
+    char *end = buf + 6;
+    char *start = end;
+    int temp = pid;
 
-static int
-gst(pid_t p, unsigned long long *t)
-{
-    char pt[64], b[PBUF];
-    if (ppath(p, "stat", pt, sizeof(pt))) return -1;
-    int fd = open(pt, O_RDONLY);
-    if (fd < 0) return -1;
-    ssize_t r = read(fd, b, sizeof(b) - 1);
-    close(fd);
-    if (r <= 0) return -1;
-    b[r] = '\0';
-    char *x = strrchr(b, ')');
-    if (!x) return -1;
-    int c = 0;
-    while (*x && c < 19) {
-        if (*x == ' ') c++;
-        x++;
+    do {
+        *end++ = '0' + (temp % 10);
+        temp /= 10;
+    } while (temp);
+
+    for (char *x = start, *y = end - 1; x < y; ++x, --y) {
+        char c = *x;
+        *x = *y;
+        *y = c;
     }
-    if (c != 19 || sscanf(x, "%llu", t) != 1) return -1;
+
+    *end++ = '/';
+    while ((*end++ = *file++));
+}
+
+static unsigned long long
+fast_atoi(const char *str)
+{
+    unsigned long long res = 0;
+    while (*str >= '0' && *str <= '9')
+        res = res * 10 + (*str++ - '0');
+    return res;
+}
+
+static int
+parse_stat(pid_t pid, pid_t *ppid, unsigned long long *time)
+{
+    char path[64], buf[PROC_BUF];
+    make_path(pid, "stat", path);
+
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) return -1;
+
+    ssize_t r = read(fd, buf, sizeof(buf) - 1);
+    close(fd);
+
+    if (r <= 0) return -1;
+    buf[r] = '\0';
+
+    char *ptr = strrchr(buf, ')');
+    if (!ptr || ptr[1] != ' ') return -1;
+    ptr += 2;
+
+    if (!*ptr || !*(++ptr)) return -1;
+    ptr++;
+
+    *ppid = (pid_t)fast_atoi(ptr);
+    if (!valid_pid(*ppid)) *ppid = -1;
+
+    for (int i = 0; i < 18; ++i) {
+        while (*ptr && *ptr != ' ') ptr++;
+        if (!*ptr) return -1;
+        ptr++;
+    }
+
+    *time = fast_atoi(ptr);
     return 0;
 }
 
 static proc_t *
-cget(pid_t p)
+cache_get(pid_t pid)
 {
-    for (size_t i = 0; i < che_n; ++i)
-        if (che[i].p == p) return &che[i];
+    for (size_t i = 0; i < cache_len; ++i)
+        if (cache[i].pid == pid) return &cache[i];
     return NULL;
 }
 
 static proc_t *
-cadd(pid_t p)
+cache_add(pid_t pid)
 {
-    if (che_n >= CSZ) return NULL;
-    proc_t *e = &che[che_n++];
-    e->p = p; e->pp = -1; e->exe[0] = 0; e->t = 0; e->f = 0;
-    return e;
+    if (cache_len >= CACHE_MAX) return NULL;
+    proc_t *entry = &cache[cache_len++];
+    entry->pid = pid;
+    entry->ppid = -1;
+    entry->exe[0] = '\0';
+    entry->time = 0;
+    entry->flags = 0;
+    return entry;
 }
 
 static int
-gpp(pid_t p, pid_t *o)
+get_exe(pid_t pid, char *buf, size_t size)
 {
-    char pt[64], b[PBUF];
-    if (ppath(p, "stat", pt, sizeof(pt))) return -1;
-    int fd = open(pt, O_RDONLY);
-    if (fd < 0) return -1;
-    ssize_t r = read(fd, b, sizeof(b) - 1);
-    close(fd);
-    if (r <= 0) return -1;
-    b[r] = '\0';
-    char *x = strchr(b, ')');
-    if (!x || x[1] != ' ' || !x[2]) return -1;
-    int pp;
-    if (sscanf(x + 2, "%*c %d", &pp) != 1 || !vpid(pp)) {
-        *o = -1; return -1;
-    }
-    *o = pp;
+    char path[64];
+    make_path(pid, "exe", path);
+    ssize_t len = readlink(path, buf, size - 1);
+    if (len <= 0) return -1;
+    buf[len] = '\0';
     return 0;
 }
 
 static int
-gexe(pid_t p, char *b, size_t z)
+get_proc(pid_t pid, proc_t *out)
 {
-    char pt[PATH_MAX], t[PATH_MAX];
-    if (ppath(p, "exe", pt, sizeof(pt))) return -1;
-    ssize_t l = readlink(pt, t, sizeof(t) - 1);
-    if (l <= 0) return -1;
-    t[l] = '\0';
-    char *r = realpath(t, NULL);
-    if (r) {
-        if (*r == '/' && (!strncmp(r, "/usr", 4) || !strncmp(r, "/bin", 4) ||
-            !strncmp(r, "/sbin", 5) || !strncmp(r, "/opt", 4) ||
-            !strncmp(r, "/home", 5))) {
-            scpy(b, r, z); free(r); return 0;
-        }
-        free(r); return -1;
-    }
-    scpy(b, t, z);
-    return 0;
-}
+    if (!valid_pid(pid)) return -1;
 
-static int
-gproc(pid_t p, proc_t *pr)
-{
-    if (!vpid(p)) return -1;
-    proc_t *c = cget(p);
-    if (c) { if (pr != c) *pr = *c; return 0; }
-    proc_t *e = cadd(p);
-    if (!e) return -1;
-    if (!gst(p, &e->t)) e->f |= F_ST;
-    if (!gpp(p, &e->pp)) e->f |= F_PP;
-    if (!gexe(p, e->exe, sizeof(e->exe))) e->f |= F_EXE;
-    *pr = *e;
+    proc_t *cached = cache_get(pid);
+    if (cached) {
+        if (out != cached) *out = *cached;
+        return 0;
+    }
+
+    proc_t *entry = cache_add(pid);
+    if (!entry) return -1;
+
+    if (parse_stat(pid, &entry->ppid, &entry->time) == 0)
+        entry->flags |= (FL_TIME | FL_PPID);
+
+    if (get_exe(pid, entry->exe, sizeof(entry->exe)) == 0)
+        entry->flags |= FL_EXE;
+
+    *out = *entry;
     return 0;
 }
 
 static size_t
-bchn(pid_t s, proc_t *l, size_t m)
+build_chain(pid_t start, proc_t *list, size_t max)
 {
-    size_t i = 0;
-    pid_t c = s;
-    while (vpid(c) && i < m) {
-        if (gproc(c, &l[i])) break;
-        if ((l[i].f & F_PP) && l[i].pp != c && vpid(l[i].pp))
-            c = l[i].pp;
-        else break;
-        i++;
+    size_t count = 0;
+    pid_t curr = start;
+
+    while (valid_pid(curr) && count < max) {
+        if (get_proc(curr, &list[count]) != 0) break;
+        if ((list[count].flags & FL_PPID) && list[count].ppid != curr && valid_pid(list[count].ppid))
+            curr = list[count].ppid;
+        else
+            break;
+        count++;
     }
-    return i;
+    return count;
+}
+
+static inline int
+str_eq(const char *a, const char *b)
+{
+    return a && b && strcmp(a, b) == 0;
+}
+
+static inline int
+str_pfx(const char *s, const char *p, size_t len)
+{
+    return s && p && strncmp(s, p, len) == 0;
 }
 
 static int
-seq(const char *a, const char *b)
+match_list(const char *name, const match_t *list, size_t count)
 {
-    return a && b && !strcmp(a, b);
-}
-
-static int
-spfx(const char *s, const char *p, size_t l)
-{
-    return s && p && !strncmp(s, p, l);
-}
-
-static int
-mlst(const char *n, const lst_t *l, size_t c)
-{
-    if (!n || !*n || !l || !c) return 0;
-    for (size_t i = 0; i < c; ++i)
-        if (n[0] == l[i].s[0] && (seq(n, l[i].s) || spfx(n, l[i].s, l[i].l)))
+    if (!name || !*name) return 0;
+    for (size_t i = 0; i < count; ++i)
+        if (name[0] == list[i].id[0] && (str_eq(name, list[i].id) || str_pfx(name, list[i].id, list[i].len)))
             return 1;
     return 0;
 }
 
-static int
-issh(const char *n)
+static void
+base_name(const char *path, char *out, size_t size)
 {
-    return mlst(n, shs, ALEN(shs));
+    const char *base = strrchr(path, '/');
+    str_cpy(out, base ? base + 1 : path, size);
 }
 
 static void
-bnm(const char *p, char *o, size_t z)
-{
-    if (!p || !o || !z) return;
-    const char *b = strrchr(p, '/');
-    scpy(o, b ? b + 1 : p, z);
-}
-
-static void
-gusr(char *b, size_t z)
+fetch_user(char *buf, size_t size)
 {
     struct passwd *pw = getpwuid(getuid());
-    scpy(b, (pw && pw->pw_name) ? pw->pw_name : "user", z);
+    str_cpy(buf, (pw && pw->pw_name) ? pw->pw_name : "user", size);
 }
 
 static void
-ghst(char *b, size_t z)
+fetch_host(char *buf, size_t size)
 {
-    if (hsk) { scpy(b, hsb, z); return; }
-    if (gethostname(b, z)) scpy(b, "localhost", z);
-    else b[z - 1] = 0;
-    scpy(hsb, b, sizeof(hsb)); hsk = 1;
-}
-
-static void
-gsh(proc_t *c, size_t n, char *b, size_t z)
-{
-    char *e = getenv("SHELL");
-    if (e && *e) { bnm(e, b, z); return; }
-    char tmp[MNM];
-    for (size_t i = 0; i < n; ++i) {
-        if (!(c[i].f & F_EXE)) continue;
-        bnm(c[i].exe, tmp, sizeof(tmp));
-        if (issh(tmp)) { scpy(b, tmp, z); return; }
+    if (host_ok) {
+        str_cpy(buf, host_buf, size);
+        return;
     }
-    scpy(b, "unknown", z);
+    if (gethostname(buf, size) != 0)
+        str_cpy(buf, "localhost", size);
+    else
+        buf[size - 1] = '\0';
+    str_cpy(host_buf, buf, sizeof(host_buf));
+    host_ok = 1;
 }
 
 static void
-gtm(proc_t *c, size_t n, char *b, size_t z)
+fetch_shell(proc_t *chain, size_t count, char *buf, size_t size)
 {
-    char *e = getenv("TERM_PROGRAM");
-    if (e && *e) { scpy(b, e, z); return; }
-    e = getenv("TERMINAL");
-    if (e && *e) { bnm(e, b, z); return; }
-    char tmp[MNM];
-    for (size_t i = 1; i < n; ++i) {
-        if (!(c[i].f & F_EXE)) continue;
-        bnm(c[i].exe, tmp, sizeof(tmp));
-        if (issh(tmp)) continue;
-        if (mlst(tmp, trms, ALEN(trms))) {
-            for (size_t j = 0; j < ALEN(trms); ++j)
-                if (seq(tmp, trms[j].s) || spfx(tmp, trms[j].s, trms[j].l)) {
-                    scpy(b, trms[j].s, z); return;
-                }
+    char *env = getenv("SHELL");
+    if (env && *env) {
+        base_name(env, buf, size);
+        return;
+    }
+
+    char tmp[NAME_MAX];
+    for (size_t i = 0; i < count; ++i) {
+        if (!(chain[i].flags & FL_EXE)) continue;
+        base_name(chain[i].exe, tmp, sizeof(tmp));
+        if (match_list(tmp, shells, ARRLEN(shells))) {
+            str_cpy(buf, tmp, size);
+            return;
         }
-        if (*tmp) { scpy(b, tmp, z); return; }
     }
-    scpy(b, "unknown", z);
+    str_cpy(buf, "unknown", size);
+}
+
+static void
+fetch_term(proc_t *chain, size_t count, char *buf, size_t size)
+{
+    char *env = getenv("TERM_PROGRAM");
+    if (env && *env) {
+        str_cpy(buf, env, size);
+        return;
+    }
+
+    env = getenv("TERMINAL");
+    if (env && *env) {
+        base_name(env, buf, size);
+        return;
+    }
+
+    char tmp[NAME_MAX];
+    for (size_t i = 1; i < count; ++i) {
+        if (!(chain[i].flags & FL_EXE)) continue;
+        base_name(chain[i].exe, tmp, sizeof(tmp));
+        if (match_list(tmp, shells, ARRLEN(shells))) continue;
+
+        if (match_list(tmp, terms, ARRLEN(terms))) {
+            for (size_t j = 0; j < ARRLEN(terms); ++j) {
+                if (str_eq(tmp, terms[j].id) || str_pfx(tmp, terms[j].id, terms[j].len)) {
+                    str_cpy(buf, terms[j].id, size);
+                    return;
+                }
+            }
+        }
+        if (tmp[0]) {
+            str_cpy(buf, tmp, size);
+            return;
+        }
+    }
+    str_cpy(buf, "unknown", size);
 }
 
 static int
-dwsl(void)
+detect_wsl(void)
 {
-    if (wslk != -1) return wslk;
-    wslk = 0;
-    char b[512];
+    if (wsl_ok != -1) return wsl_ok;
+    wsl_ok = 0;
+    char buf[512];
     int fd = open("/proc/sys/kernel/osrelease", O_RDONLY);
     if (fd >= 0) {
-        ssize_t r = read(fd, b, sizeof(b) - 1);
+        ssize_t r = read(fd, buf, sizeof(buf) - 1);
         close(fd);
-        if (r > 0) { b[r] = 0; if (strstr(b, "WSL") || strstr(b, "microsoft")) wslk = 1; }
+        if (r > 0) {
+            buf[r] = '\0';
+            if (strstr(buf, "WSL") || strstr(buf, "microsoft")) wsl_ok = 1;
+        }
     }
-    if (wslk) return 1;
+    if (wsl_ok) return 1;
+
     fd = open("/proc/version", O_RDONLY);
     if (fd >= 0) {
-        ssize_t r = read(fd, b, sizeof(b) - 1);
+        ssize_t r = read(fd, buf, sizeof(buf) - 1);
         close(fd);
-        if (r > 0) { b[r] = 0; if (strstr(b, "Microsoft") || strstr(b, "WSL")) wslk = 1; }
+        if (r > 0) {
+            buf[r] = '\0';
+            if (strstr(buf, "Microsoft") || strstr(buf, "WSL")) wsl_ok = 1;
+        }
     }
-    return wslk;
+    return wsl_ok;
 }
 
 static void
-gwslwm(char *b, size_t z)
+fetch_wsl_wm(char *buf, size_t size)
 {
-    char *e = getenv("WAYLAND_DISPLAY");
-    if (e && *e) { scpy(b, "WSLg", z); return; }
-    e = getenv("DISPLAY");
-    if (e && *e) { scpy(b, "WSLg", z); return; }
-    scpy(b, "unknown", z);
+    char *env = getenv("WAYLAND_DISPLAY");
+    if (env && *env) {
+        str_cpy(buf, "WSLg", size);
+        return;
+    }
+    env = getenv("DISPLAY");
+    if (env && *env) {
+        str_cpy(buf, "WSLg", size);
+        return;
+    }
+    str_cpy(buf, "unknown", size);
 }
 
 static void
-gwsltm(char *b, size_t z)
+fetch_wsl_term(char *buf, size_t size)
 {
     if (getenv("WT_SESSION") || getenv("WT_PROFILE_ID"))
-        scpy(b, "Windows Terminal", z);
-    else b[0] = 0;
+        str_cpy(buf, "Windows Terminal", size);
+    else
+        buf[0] = '\0';
 }
 
 static int
-gcomm(const char *pid, char *o, size_t z)
+get_comm(pid_t pid, char *buf, size_t size)
 {
-    char pt[PATH_MAX];
-    if (snprintf(pt, sizeof(pt), "/proc/%s/comm", pid) < 0) return -1;
-    int fd = open(pt, O_RDONLY);
+    char path[64];
+    make_path(pid, "comm", path);
+
+    int fd = open(path, O_RDONLY);
     if (fd < 0) return -1;
-    ssize_t r = read(fd, o, z - 1);
+
+    ssize_t r = read(fd, buf, size - 1);
     close(fd);
+
     if (r <= 0) return -1;
-    o[r] = 0;
-    size_t l = strnlen(o, z);
-    if (l > 0 && o[l - 1] == '\n') o[l - 1] = 0;
+    buf[r] = '\0';
+
+    size_t len = 0;
+    while (buf[len]) len++;
+    if (len > 0 && buf[len - 1] == '\n') buf[len - 1] = '\0';
+
     return 0;
 }
 
-static int
-iwm(const char *s)
+static void
+alarm_handler(int sig)
 {
-    if (!s || !*s) return 0;
-    char *e; errno = 0;
-    unsigned long p = strtoul(s, &e, 10);
-    return (errno == 0 && *e == 0 && e != s && p >= WMPMIN && p <= WMPMAX);
+    (void)sig;
+    stop_scan = 1;
+}
+
+static int
+pid_cmp(const void *a, const void *b)
+{
+    return (*(const int *)b - *(const int *)a);
 }
 
 static void
-salrm(int s)
+fetch_wm(char *buf, size_t size)
 {
-    (void)s; stop = 1;
-}
-
-static int
-dcmp(const struct dirent **a, const struct dirent **b)
-{
-    unsigned long na = strtoul((*a)->d_name, 0, 10);
-    unsigned long nb = strtoul((*b)->d_name, 0, 10);
-    return (nb < na) - (na < nb);
-}
-
-static int
-dflt(const struct dirent *e)
-{
-    return e->d_name[0] >= '0' && e->d_name[0] <= '9' && iwm(e->d_name);
-}
-
-static void
-gwm(char *b, size_t z)
-{
-    if (wmk) { scpy(b, wmb, z); return; }
-    struct dirent **l = NULL;
-    int n = scandir("/proc", &l, dflt, dcmp);
-    if (n < 0) goto fail;
-    struct sigaction sa = {0}, o;
-    sa.sa_handler = salrm;
-    sigemptyset(&sa.sa_mask);
-    if (sigaction(SIGALRM, &sa, &o)) {
-        for (int i = 0; i < n; i++) free(l[i]);
-        free(l); goto fail;
+    if (wm_ok) {
+        str_cpy(buf, wm_buf, size);
+        return;
     }
-    stop = 0; alarm(WMTO);
-    char cm[MSM];
-    int lm = (n < SCNMX) ? n : SCNMX;
-    for (int i = 0; i < lm && !stop; i++) {
-        if (gcomm(l[i]->d_name, cm, sizeof(cm))) continue;
-        if (!*cm) continue;
-        if (mlst(cm, wms, ALEN(wms))) {
-            for (size_t j = 0; j < ALEN(wms); ++j)
-                if (seq(cm, wms[j].s) || spfx(cm, wms[j].s, wms[j].l)) {
-                    scpy(b, wms[j].s, z); scpy(wmb, b, sizeof(wmb)); wmk = 1;
-                    goto end;
+
+    DIR *dir = opendir("/proc");
+    if (!dir) goto fail;
+
+    pid_t candidates[SCAN_MAX];
+    int count = 0;
+    struct dirent *entry;
+
+    while ((entry = readdir(dir)) && count < SCAN_MAX) {
+        if (entry->d_name[0] < '0' || entry->d_name[0] > '9') continue;
+        pid_t pid = (pid_t)fast_atoi(entry->d_name);
+        if (pid >= WM_PID_MIN && pid <= WM_PID_MAX)
+            candidates[count++] = pid;
+    }
+    closedir(dir);
+
+    qsort(candidates, count, sizeof(pid_t), pid_cmp);
+
+    struct sigaction sa = {0}, old;
+    sa.sa_handler = alarm_handler;
+    sigemptyset(&sa.sa_mask);
+    if (sigaction(SIGALRM, &sa, &old)) goto fail;
+
+    stop_scan = 0;
+    alarm(WM_TIMEOUT);
+
+    char comm[NAME_MAX];
+    for (int i = 0; i < count && !stop_scan; i++) {
+        if (get_comm(candidates[i], comm, sizeof(comm))) continue;
+        if (!*comm) continue;
+
+        if (match_list(comm, wms, ARRLEN(wms))) {
+            for (size_t j = 0; j < ARRLEN(wms); ++j) {
+                if (str_eq(comm, wms[j].id) || str_pfx(comm, wms[j].id, wms[j].len)) {
+                    str_cpy(buf, wms[j].id, size);
+                    str_cpy(wm_buf, buf, sizeof(wm_buf));
+                    wm_ok = 1;
+                    goto done;
                 }
+            }
         }
     }
-    scpy(b, "unknown", z); scpy(wmb, "unknown", sizeof(wmb)); wmk = 1;
-end:
-    alarm(0); sigaction(SIGALRM, &o, NULL);
-    for (int i = 0; i < n; i++) free(l[i]);
-    free(l); return;
+    goto fail;
+
+done:
+    alarm(0);
+    sigaction(SIGALRM, &old, NULL);
+    return;
+
 fail:
-    scpy(b, "unknown", z); scpy(wmb, "unknown", sizeof(wmb)); wmk = 1;
+    str_cpy(buf, "unknown", size);
+    str_cpy(wm_buf, "unknown", sizeof(wm_buf));
+    wm_ok = 1;
 }
 
 static int
-pos(const char *k, size_t kl, char *l, char *o, size_t z)
+parse_os_field(const char *key, size_t klen, char *line, char *out, size_t size)
 {
-    if (strncmp(l, k, kl)) return -1;
-    char *s = strchr(l, '"'), *e = strrchr(l, '"');
-    if (s && e && s < e) {
-        *e = 0; size_t r = strnlen(s + 1, z);
-        scpy(o, s + 1, MIN(r + 1, z)); return 0;
+    if (strncmp(line, key, klen)) return -1;
+    char *start = strchr(line, '"');
+    char *end = strrchr(line, '"');
+
+    if (start && end && start < end) {
+        *end = '\0';
+        size_t rem = strnlen(start + 1, size);
+        str_cpy(out, start + 1, MIN(rem + 1, size));
+        return 0;
     }
-    char *p = l + kl;
-    size_t x = strnlen(p, MLN - kl);
-    if (x > 0 && p[x - 1] == '\n') p[x - 1] = 0;
-    scpy(o, p, z); return 0;
+
+    char *ptr = line + klen;
+    size_t len = strnlen(ptr, LINE_MAX - klen);
+    if (len > 0 && ptr[len - 1] == '\n') ptr[len - 1] = '\0';
+    str_cpy(out, ptr, size);
+    return 0;
 }
 
 static void
-gos(char *b, size_t z)
+fetch_os(char *buf, size_t size)
 {
-    if (osk) { scpy(b, osb, z); return; }
+    if (os_ok) {
+        str_cpy(buf, os_buf, size);
+        return;
+    }
+
     FILE *f = fopen("/etc/os-release", "r");
-    if (!f) { scpy(b, "Linux", z); goto d; }
-    char l[MLN]; b[0] = 0;
-    while (fgets(l, sizeof(l), f)) {
-        if (!pos("PRETTY_NAME=", 12, l, b, z)) break;
-        if (!*b) pos("NAME=", 5, l, b, z);
+    if (!f) {
+        str_cpy(buf, "Linux", size);
+        goto done;
     }
-    if (!*b) scpy(b, "Linux", z);
+
+    char line[LINE_MAX];
+    buf[0] = '\0';
+
+    while (fgets(line, sizeof(line), f)) {
+        if (!parse_os_field("PRETTY_NAME=", 12, line, buf, size)) break;
+        if (!*buf) parse_os_field("NAME=", 5, line, buf, size);
+    }
+
+    if (!*buf) str_cpy(buf, "Linux", size);
     fclose(f);
-d:  scpy(osb, b, sizeof(osb)); osk = 1;
+
+done:
+    str_cpy(os_buf, buf, sizeof(os_buf));
+    os_ok = 1;
 }
 
 static void
-psep(size_t l)
+print_sep(size_t len)
 {
-    while (l--) putchar('-');
+    while (len--) putchar('-');
     putchar('\n');
 }
 
 static void
-pver(void)
+print_version(void)
 {
-    printf("zeptofetch %s\n", VER);
-    printf("Copyright (C) %s Gurov\n", CPR);
+    printf("zeptofetch %s\n", VERSION);
+    printf("Copyright (C) %s Gurov\n", COPYRIGHT);
     printf("Licensed under GPL-3.0\n\n");
-    printf("BUILD: %s %s UTC | ", __DATE__, __TIME__);
-#if defined(__clang__)
-    printf("Clang %d.%d.%d\n", __clang_major__, __clang_minor__, __clang_patchlevel__);
-#elif defined(__GNUC__)
-#ifdef __GNUC_PATCHLEVEL__
-    printf("GCC %d.%d.%d\n", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
-#else
-    printf("GCC %d.%d\n", __GNUC__, __GNUC_MINOR__);
-#endif
-#else
-    printf("Unknown\n");
-#endif
-    printf("CFG: CHE=%d CHN=%d PATH=%d PID=%d TO=%ds\n", CSZ, MCHN, PATH_MAX, PIDMX, WMTO);
+    printf("BUILD: %s %s UTC\n", __DATE__, __TIME__);
+    printf("CONFIG: CACHE=%d CHAIN=%d PID=%d TIMEOUT=%ds\n",
+           CACHE_MAX, CHAIN_MAX, PID_LIMIT, WM_TIMEOUT);
 }
 
 static void
-san(char *d, size_t z, const char *s)
+sanitize(char *dst, size_t size, const char *src)
 {
-    if (!d || !s || !z) return;
+    if (!dst || !src || !size) return;
     size_t i = 0;
-    while (i < z - 1 && s[i] && s[i] != ' ') { d[i] = s[i]; i++; }
-    d[i] = 0;
+    while (i < size - 1 && src[i] && src[i] != ' ') {
+        dst[i] = src[i];
+        i++;
+    }
+    dst[i] = '\0';
 }
 
 static void
-draw(const char *u, const char *h, const char *os, const char *k,
-     const char *sh, const char *wm, const char *tm)
+display(const char *user, const char *host, const char *os, const char *kern,
+        const char *shell, const char *wm, const char *term)
 {
-    char kr[64], t[256];
-    san(kr, sizeof(kr), k);
-    int n = snprintf(t, sizeof(t), "%s@%s", u, h);
-    size_t l = (n > 0 && (size_t)n < sizeof(t)) ? (size_t)n : 0;
-    printf("%s    ___ %s     %s%s@%s%s\n", C1, CR, C1, u, h, CR);
-    printf("%s   (%s.· %s|%s     ", C1, C2, C1, CR); psep(l);
+    char krel[64], temp[256];
+    sanitize(krel, sizeof(krel), kern);
+
+    int n = snprintf(temp, sizeof(temp), "%s@%s", user, host);
+    size_t len = (n > 0 && (size_t)n < sizeof(temp)) ? (size_t)n : 0;
+
+    printf("%s    ___ %s     %s%s@%s%s\n", C1, CR, C1, user, host, CR);
+    printf("%s   (%s.· %s|%s     ", C1, C2, C1, CR);
+    print_sep(len);
     printf("%s   (%s<>%s %s|%s     %sOS:%s %s\n", C1, C3, CR, C1, CR, C3, CR, os);
-    printf("%s  / %s__  %s\\%s    %sKernel:%s %s\n", C1, C2, C1, CR, C3, CR, kr);
-    printf("%s ( %s/  \\ %s/|%s   %sShell:%s %s\n", C1, C2, C1, CR, C3, CR, sh);
+    printf("%s  / %s__  %s\\%s    %sKernel:%s %s\n", C1, C2, C1, CR, C3, CR, krel);
+    printf("%s ( %s/  \\ %s/|%s   %sShell:%s %s\n", C1, C2, C1, CR, C3, CR, shell);
     printf("%s_%s/\\ %s__)%s/%s_%s)%s   %sWM:%s %s\n", C3, C1, C2, C1, C3, C1, CR, C3, CR, wm);
-    printf("%s%s\\/%s-____%s\\/%s    %sTerminal:%s %s\n\n", C1, C3, C1, C3, CR, C3, CR, tm);
+    printf("%s%s\\/%s-____%s\\/%s    %sTerminal:%s %s\n\n", C1, C3, C1, C3, CR, C3, CR, term);
 }
 
 static int
-rlim(void)
+set_limits(void)
 {
-    struct rlimit l;
-    l.rlim_cur = l.rlim_max = 50 * 1024 * 1024;
-    if (setrlimit(RLIMIT_AS, &l)) return -1;
-    l.rlim_cur = l.rlim_max = 5;
-    if (setrlimit(RLIMIT_CPU, &l)) return -1;
-    l.rlim_cur = l.rlim_max = 128;
-    if (setrlimit(RLIMIT_NOFILE, &l)) return -1;
+    struct rlimit rlim;
+    rlim.rlim_cur = rlim.rlim_max = 50 * 1024 * 1024;
+    if (setrlimit(RLIMIT_AS, &rlim)) return -1;
+
+    rlim.rlim_cur = rlim.rlim_max = 5;
+    if (setrlimit(RLIMIT_CPU, &rlim)) return -1;
+
+    rlim.rlim_cur = rlim.rlim_max = 128;
+    if (setrlimit(RLIMIT_NOFILE, &rlim)) return -1;
+
     return 0;
 }
 
 static void
-cln(void)
+cleanup(void)
 {
-    if (che) munmap(che, CSZ * sizeof(proc_t));
+    if (cache) munmap(cache, CACHE_MAX * sizeof(proc_t));
 }
 
 int
-main(int c, char **v)
+main(int argc, char **argv)
 {
     prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
     prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
+
     if (geteuid() != getuid() || getegid() != getgid())
         if (setuid(getuid()) || setgid(getgid())) return 1;
-    if (rlim()) fprintf(stderr, "Warn: limits failed\n");
-    che = mmap(NULL, CSZ * sizeof(proc_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (che == MAP_FAILED) { fprintf(stderr, "Err: alloc fail\n"); return 1; }
-    atexit(cln);
-    setlocale(LC_ALL, "");
-    if (c > 1 && (seq(v[1], "--version") || seq(v[1], "-v"))) { pver(); return 0; }
-    char u[MSM], h[MSM], sh[MSM], wm[MSM], tm[MSM], os[MNM];
-    struct utsname un;
-    if (uname(&un)) scpy(un.release, "unknown", sizeof(un.release));
-    gusr(u, sizeof(u)); ghst(h, sizeof(h));
-    proc_t ch[MCHN];
-    che_n = 0;
-    size_t n = bchn(getpid(), ch, MCHN);
-    gsh(ch, n, sh, sizeof(sh)); gos(os, sizeof(os));
-    if (dwsl()) {
-        gwsltm(tm, sizeof(tm));
-        if (!*tm) gtm(ch, n, tm, sizeof(tm));
-        gwslwm(wm, sizeof(wm));
-        if (seq(wm, "unknown")) gwm(wm, sizeof(wm));
-    } else {
-        gtm(ch, n, tm, sizeof(tm)); gwm(wm, sizeof(wm));
+
+    if (set_limits()) fprintf(stderr, "Warn: limits failed\n");
+
+    cache = mmap(NULL, CACHE_MAX * sizeof(proc_t),
+                 PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (cache == MAP_FAILED) return 1;
+
+    atexit(cleanup);
+
+    if (argc > 1 && (str_eq(argv[1], "--version") || str_eq(argv[1], "-v"))) {
+        print_version();
+        return 0;
     }
-    draw(u, h, os, un.release, sh, wm, tm);
+
+    char user[NAME_MAX], host[NAME_MAX];
+    char shell[NAME_MAX], wm[NAME_MAX], term[NAME_MAX];
+    char os[LINE_MAX];
+    struct utsname un;
+
+    if (uname(&un)) str_cpy(un.release, "unknown", sizeof(un.release));
+
+    fetch_user(user, sizeof(user));
+    fetch_host(host, sizeof(host));
+
+    proc_t chain[CHAIN_MAX];
+    cache_len = 0;
+    size_t count = build_chain(getpid(), chain, CHAIN_MAX);
+
+    fetch_shell(chain, count, shell, sizeof(shell));
+    fetch_os(os, sizeof(os));
+
+    if (detect_wsl()) {
+        fetch_wsl_term(term, sizeof(term));
+        if (!*term) fetch_term(chain, count, term, sizeof(term));
+        fetch_wsl_wm(wm, sizeof(wm));
+        if (str_eq(wm, "unknown")) fetch_wm(wm, sizeof(wm));
+    } else {
+        fetch_term(chain, count, term, sizeof(term));
+        fetch_wm(wm, sizeof(wm));
+    }
+
+    display(user, host, os, un.release, shell, wm, term);
     return 0;
 }
