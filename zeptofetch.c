@@ -15,7 +15,7 @@
 #include <unistd.h>
 #include "config.h"
 
-#define VERSION     "v1.14"
+#define VERSION     "v1.15"
 #define COPYRIGHT   "2026"
 
 #ifndef PATH_MAX
@@ -106,11 +106,11 @@ static const match_t wms[] = {
 
 static proc_t *cache = NULL;
 static size_t cache_len = 0;
-static char wm_buf[NAME_MAX] = {0};
+static char wm_buf[MAX_NAME] = {0};
 static int wm_ok = 0;
 static char os_buf[LINE_MAX] = {0};
 static int os_ok = 0;
-static char host_buf[NAME_MAX] = {0};
+static char host_buf[MAX_NAME] = {0};
 static int host_ok = 0;
 static int wsl_ok = -1;
 static volatile sig_atomic_t stop_scan = 0;
@@ -333,7 +333,7 @@ fetch_shell(proc_t *chain, size_t count, char *buf, size_t size)
         return;
     }
 
-    char tmp[NAME_MAX];
+    char tmp[MAX_NAME];
     for (size_t i = 0; i < count; ++i) {
         if (!(chain[i].flags & FL_EXE)) continue;
         base_name(chain[i].exe, tmp, sizeof(tmp));
@@ -360,7 +360,7 @@ fetch_term(proc_t *chain, size_t count, char *buf, size_t size)
         return;
     }
 
-    char tmp[NAME_MAX];
+    char tmp[MAX_NAME];
     for (size_t i = 1; i < count; ++i) {
         if (!(chain[i].flags & FL_EXE)) continue;
         base_name(chain[i].exe, tmp, sizeof(tmp));
@@ -504,7 +504,7 @@ fetch_wm(char *buf, size_t size)
     stop_scan = 0;
     alarm(WM_TIMEOUT);
 
-    char comm[NAME_MAX];
+    char comm[MAX_NAME];
     for (int i = 0; i < count && !stop_scan; i++) {
         if (get_comm(candidates[i], comm, sizeof(comm))) continue;
         if (!*comm) continue;
@@ -582,6 +582,20 @@ fetch_os(char *buf, size_t size)
 done:
     str_cpy(os_buf, buf, sizeof(os_buf));
     os_ok = 1;
+}
+
+static int
+get_tty(char *buf, size_t size, char *wm, size_t wm_size)
+{
+    ssize_t len = readlink("/proc/self/fd/0", buf, size - 1);
+    if (len <= 0) return 0;
+    buf[len] = '\0';
+
+    if (strncmp(buf, "/dev/tty", 8) == 0 && buf[8] >= '0' && buf[8] <= '9') {
+        str_cpy(wm, "none", wm_size);
+        return 1;
+    }
+    return 0;
 }
 
 static void
@@ -678,8 +692,8 @@ main(int argc, char **argv)
         return 0;
     }
 
-    char user[NAME_MAX], host[NAME_MAX];
-    char shell[NAME_MAX], wm[NAME_MAX], term[NAME_MAX];
+    char user[MAX_NAME], host[MAX_NAME];
+    char shell[MAX_NAME], wm[MAX_NAME], term[MAX_NAME];
     char os[LINE_MAX];
     struct utsname un;
 
@@ -695,7 +709,8 @@ main(int argc, char **argv)
     fetch_shell(chain, count, shell, sizeof(shell));
     fetch_os(os, sizeof(os));
 
-    if (detect_wsl()) {
+    if (get_tty(term, sizeof(term), wm, sizeof(wm))) {
+    } else if (detect_wsl()) {
         fetch_wsl_term(term, sizeof(term));
         if (!*term) fetch_term(chain, count, term, sizeof(term));
         fetch_wsl_wm(wm, sizeof(wm));
