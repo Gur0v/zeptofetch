@@ -11,7 +11,7 @@
 </div>
 
 ## 🎯 Why zeptofetch?
-`zeptofetch` delivers system information in **under 1ms*** with a **28KB binary**. No scripts, no bloat, just pure C doing exactly what you need.
+`zeptofetch` delivers system information in **under 1ms*** with a **32KB binary**. No scripts, no bloat, just pure C doing exactly what you need.
 While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, zeptofetch gives you information 553x faster* with a fraction of the size.
 
 <sub>*_Performance varies by hardware and system configuration. See [benchmarks](#benchmarks) for details._</sub>
@@ -19,7 +19,7 @@ While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, z
 ## ✨ Features
 **Fast & Lightweight**
 - ⚡ Runs in ~0.73 ms (553× faster than neofetch)
-- 📦 Only 28 KB in size
+- 📦 Only 32 KB in size
 - 💾 No dependencies needed
 
 **Modern & Reliable**
@@ -49,7 +49,7 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine) on the following s
 
 | Tool           | Runtime*              | Binary Size | Speed vs neofetch     |
 |----------------|-----------------------|-------------|-----------------------|
-| **zeptofetch** | **732.4µs ± 77.7µs**  | **28 KB**   | `553x faster`         |
+| **zeptofetch** | **732.4µs ± 77.7µs**  | **32 KB**   | `553x faster`         |
 | fastfetch      | 6.7ms ± 1.0ms         | ~200 KB     | `61x faster`          |
 | neofetch       | 405.1ms ± 21.0ms      | ~50 KB      | *baseline*            |
 
