@@ -4,14 +4,14 @@
 
 *Blazingly fast, ultra-minimal system information tool for Linux*
 
-![zeptofetch v1.13](https://roblo-x.com/3fa4j3ar.webp)
+![zeptofetch v1.14](https://roblo-x.com/3fa4j3ar.webp)
 
 [Features](#features) • [Benchmarks](#benchmarks) • [Installation](#installation) • [Usage](#usage) • [Configuration](#configuration)
 
 </div>
 
 ## 🎯 Why zeptofetch?
-`zeptofetch` delivers system information in **under 1ms*** with a **28KB binary***. No scripts, no bloat, just pure C doing exactly what you need.
+`zeptofetch` delivers system information in **under 1ms*** with a **28KB binary**. No scripts, no bloat, just pure C doing exactly what you need.
 While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, zeptofetch gives you information 553x faster* with a fraction of the size.
 
 <sub>*_Performance varies by hardware and system configuration. See [benchmarks](#benchmarks) for details._</sub>
@@ -22,9 +22,10 @@ While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, z
 - 📦 Only 28 KB in size
 - 💾 No dependencies needed
 
-**Customizable & Reliable**
+**Modern & Reliable**
 - 🎨 Easy color customization via `config.h`
-- 🐧 Written in pure C
+- 🪟 **Native WSL Support** (Windows Terminal & WSLg detection)
+- 🐧 Written in pure, minified C (C99)
 - ✅ Production ready and tested
 
 ## 📊 Benchmarks
@@ -52,7 +53,7 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine) on the following s
 | fastfetch      | 6.7ms ± 1.0ms         | ~200 KB     | `61x faster`          |
 | neofetch       | 405.1ms ± 21.0ms      | ~50 KB      | *baseline*            |
 
-<sub>*_Performance varies based on hardware, system load, CPU scheduler, kernel, desktop environment, and terminal emulator. Benchmarks shown are from zeptofetch version v1.9._</sub>
+<sub>*_Performance varies based on hardware, system load, CPU scheduler, kernel, desktop environment, and terminal emulator._</sub>
 
 ## 🚀 Installation
 
@@ -90,17 +91,18 @@ zeptofetch -v
 The `--version` flag displays:
 - Version number and license information
 - Build date, time, and compiler used
-- Configuration constants (cache size, chain depth, path max, PID max, WM timeout)
+- Compact configuration stats (Cache size, chain depth, PID max, timeouts)
 
 ## ⚙️ Configuration
 
-Customize colors by editing `config.h`:
+Customize colors by editing `config.h`.
+*Note: Macros use concise naming to match the source code.*
 
 ```c
-#define COLOR_1 "\033[1;34m"     // Bold Blue
-#define COLOR_2 "\033[1;37m"     // Bold White
-#define COLOR_3 "\033[38;5;208m" // Bold Orange
-#define COLOR_RESET "\033[0m"    // Normal
+#define CR "\033[0m"        // Reset
+#define C1 "\033[1;34m"     // Primary Color (Bold Blue)
+#define C2 "\033[1;37m"     // Secondary Color (Bold White)
+#define C3 "\033[38;5;208m" // Accent Color (Bold Orange)
 ```
 
 Rebuild after changes:
@@ -114,19 +116,19 @@ sudo make install
 
 ### Architecture Highlights
 
-- **Smart caching**: Process chain information cached during runtime
-- **Direct /proc access**: No subprocess spawning or shell execution
-- **Safe string handling**: All operations bounds-checked
-- **Optimized lookups**: First-character filtering before string comparisons
-- **Memory efficient**: Fixed-size stack allocations, predictable memory usage
+- **Minified Source**: Aggressive symbol reduction for cleaner, smaller code.
+- **Smart caching**: `mmap` based allocation for process chain information.
+- **Direct /proc access**: No subprocess spawning or shell execution.
+- **Optimized lookups**: Unified list matchers with length pre-checks.
+- **Memory efficient**: Fixed-size stack allocations, predictable memory usage.
 
 ### Detection Methods
 
-- **OS**: Parses `/etc/os-release` in single pass
-- **Shell**: Walks parent process chain via `/proc/[pid]/exe`
-- **Terminal**: Scans process ancestry for known terminal emulators
-- **WM**: Direct `/proc` scanning with result caching
-- **Kernel**: Uses `uname()` syscall
+- **OS**: Parses `/etc/os-release` in a single pass.
+- **Shell**: Walks parent process chain via `/proc/[pid]/exe`.
+- **Terminal**: Scans ancestry for known terminals; detects `WT_SESSION` for Windows Terminal.
+- **WM**: Direct `/proc` scanning with caching; detects `WAYLAND_DISPLAY` for WSLg.
+- **Kernel**: Uses `uname()` syscall.
 
 ## 🐧 Requirements
 
@@ -135,9 +137,8 @@ sudo make install
 - **libc**: glibc, musl, or compatible
 - **Build**: GCC or Clang
 
-**Partial support**: WSL (supported but may provide inaccurate information as zeptofetch is not specifically designed for it)
-
-**Not supported**: Android, BSD, macOS
+**Supported**: Linux, WSL1, WSL2 (Native detection).
+**Not supported**: Android, BSD, macOS.
 
 ## 🤝 Contributing
 
