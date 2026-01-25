@@ -142,13 +142,21 @@ sudo make install
 
 ## 🤝 Contributing
 
-Contributions are welcome! Here's how you can help:
+This project is developed and maintained on **GitLab**:
 
-- 🐛 [Report bugs](https://gitlab.archlinux.org/gurov/zeptofetch/-/issues)
-- 💡 [Suggest features](https://gitlab.archlinux.org/gurov/zeptofetch/-/issues)
-- 📝 Improve documentation
-- 🔧 Submit pull requests
-- 🧪 Test on new distributions
+👉 https://gitlab.archlinux.org/gurov/zeptofetch
+
+The GitHub repository is a **read-only mirror** used for visibility only.
+
+Please submit issues, feature requests, and merge requests on GitLab.
+
+Contributions are welcome. You can help by:
+
+- 🐛 Reporting bugs
+- 💡 Suggesting features
+- 📝 Improving documentation
+- 🔧 Submitting merge requests
+- 🧪 Testing on new distributions
 
 ## 📜 License
 
