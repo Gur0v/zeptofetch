@@ -15,23 +15,19 @@
 #include <unistd.h>
 #include "config.h"
 
-#define VERSION     "v1.15"
+#define VERSION     "v1.16"
 #define COPYRIGHT   "2026"
 
-#ifndef PATH_MAX
-#define PATH_MAX    4096
-#endif
-
-#define CACHE_MAX   256
-#define CHAIN_MAX   64
-#define LINE_MAX    128
+#define MAX_PATH    4096
+#define MAX_CACHE   256
+#define MAX_CHAIN   64
+#define MAX_LINE    128
 #define MAX_NAME    64
-#define PID_LIMIT   4194304
+#define MAX_PID     4194304
+#define MAX_SCAN    512
+#define MAX_WM_PID  100000
+#define MIN_WM_PID  300
 #define WM_TIMEOUT  1
-#define WM_PID_MIN  300
-#define WM_PID_MAX  100000
-#define SCAN_MAX    512
-#define PROC_BUF    1024
 
 #define FL_EXE      1
 #define FL_PPID     2
@@ -41,15 +37,15 @@
 #define MIN(a, b)   ((a) < (b) ? (a) : (b))
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-_Static_assert(CACHE_MAX <= PID_LIMIT, "cache > pid space");
+_Static_assert(MAX_CACHE <= MAX_PID, "cache > pid space");
 #else
-typedef char sz_chk[(CACHE_MAX <= PID_LIMIT) ? 1 : -1];
+typedef char sz_chk[(MAX_CACHE <= MAX_PID) ? 1 : -1];
 #endif
 
 typedef struct {
     pid_t pid;
     pid_t ppid;
-    char exe[PATH_MAX];
+    char exe[MAX_PATH];
     unsigned long long time;
     uint8_t flags;
 } proc_t;
@@ -108,7 +104,7 @@ static proc_t *cache = NULL;
 static size_t cache_len = 0;
 static char wm_buf[MAX_NAME] = {0};
 static int wm_ok = 0;
-static char os_buf[LINE_MAX] = {0};
+static char os_buf[MAX_LINE] = {0};
 static int os_ok = 0;
 static char host_buf[MAX_NAME] = {0};
 static int host_ok = 0;
@@ -130,7 +126,7 @@ str_cpy(char *dst, const char *src, size_t max)
 static inline int
 valid_pid(pid_t pid)
 {
-    return pid > 0 && pid <= PID_LIMIT;
+    return pid > 0 && pid <= MAX_PID;
 }
 
 static void
@@ -168,7 +164,7 @@ fast_atoi(const char *str)
 static int
 parse_stat(pid_t pid, pid_t *ppid, unsigned long long *time)
 {
-    char path[64], buf[PROC_BUF];
+    char path[64], buf[1024];
     make_path(pid, "stat", path);
 
     int fd = open(path, O_RDONLY);
@@ -211,7 +207,7 @@ cache_get(pid_t pid)
 static proc_t *
 cache_add(pid_t pid)
 {
-    if (cache_len >= CACHE_MAX) return NULL;
+    if (cache_len >= MAX_CACHE) return NULL;
     proc_t *entry = &cache[cache_len++];
     entry->pid = pid;
     entry->ppid = -1;
@@ -482,14 +478,14 @@ fetch_wm(char *buf, size_t size)
     DIR *dir = opendir("/proc");
     if (!dir) goto fail;
 
-    pid_t candidates[SCAN_MAX];
+    pid_t candidates[MAX_SCAN];
     int count = 0;
     struct dirent *entry;
 
-    while ((entry = readdir(dir)) && count < SCAN_MAX) {
+    while ((entry = readdir(dir)) && count < MAX_SCAN) {
         if (entry->d_name[0] < '0' || entry->d_name[0] > '9') continue;
         pid_t pid = (pid_t)fast_atoi(entry->d_name);
-        if (pid >= WM_PID_MIN && pid <= WM_PID_MAX)
+        if (pid >= MIN_WM_PID && pid <= MAX_WM_PID)
             candidates[count++] = pid;
     }
     closedir(dir);
@@ -548,7 +544,7 @@ parse_os_field(const char *key, size_t klen, char *line, char *out, size_t size)
     }
 
     char *ptr = line + klen;
-    size_t len = strnlen(ptr, LINE_MAX - klen);
+    size_t len = strnlen(ptr, MAX_LINE - klen);
     if (len > 0 && ptr[len - 1] == '\n') ptr[len - 1] = '\0';
     str_cpy(out, ptr, size);
     return 0;
@@ -568,7 +564,7 @@ fetch_os(char *buf, size_t size)
         goto done;
     }
 
-    char line[LINE_MAX];
+    char line[MAX_LINE];
     buf[0] = '\0';
 
     while (fgets(line, sizeof(line), f)) {
@@ -613,7 +609,7 @@ print_version(void)
     printf("Licensed under GPL-3.0\n\n");
     printf("BUILD: %s %s UTC\n", __DATE__, __TIME__);
     printf("CONFIG: CACHE=%d CHAIN=%d PID=%d TIMEOUT=%ds\n",
-           CACHE_MAX, CHAIN_MAX, PID_LIMIT, WM_TIMEOUT);
+           MAX_CACHE, MAX_CHAIN, MAX_PID, WM_TIMEOUT);
 }
 
 static void
@@ -667,7 +663,7 @@ set_limits(void)
 static void
 cleanup(void)
 {
-    if (cache) munmap(cache, CACHE_MAX * sizeof(proc_t));
+    if (cache) munmap(cache, MAX_CACHE * sizeof(proc_t));
 }
 
 int
@@ -681,7 +677,7 @@ main(int argc, char **argv)
 
     if (set_limits()) fprintf(stderr, "Warn: limits failed\n");
 
-    cache = mmap(NULL, CACHE_MAX * sizeof(proc_t),
+    cache = mmap(NULL, MAX_CACHE * sizeof(proc_t),
                  PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (cache == MAP_FAILED) return 1;
 
@@ -694,7 +690,7 @@ main(int argc, char **argv)
 
     char user[MAX_NAME], host[MAX_NAME];
     char shell[MAX_NAME], wm[MAX_NAME], term[MAX_NAME];
-    char os[LINE_MAX];
+    char os[MAX_LINE];
     struct utsname un;
 
     if (uname(&un)) str_cpy(un.release, "unknown", sizeof(un.release));
@@ -702,9 +698,9 @@ main(int argc, char **argv)
     fetch_user(user, sizeof(user));
     fetch_host(host, sizeof(host));
 
-    proc_t chain[CHAIN_MAX];
+    proc_t chain[MAX_CHAIN];
     cache_len = 0;
-    size_t count = build_chain(getpid(), chain, CHAIN_MAX);
+    size_t count = build_chain(getpid(), chain, MAX_CHAIN);
 
     fetch_shell(chain, count, shell, sizeof(shell));
     fetch_os(os, sizeof(os));
