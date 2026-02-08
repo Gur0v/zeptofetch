@@ -13,9 +13,10 @@
 #include <sys/utsname.h>
 #include <time.h>
 #include <unistd.h>
+#include <limits.h>
 #include "config.h"
 
-#define VERSION     "v1.16"
+#define VERSION     "v1.17-rc1"
 #define COPYRIGHT   "2026"
 
 #define MAX_PATH    4096
@@ -27,7 +28,7 @@
 #define MAX_SCAN    512
 #define MAX_WM_PID  100000
 #define MIN_WM_PID  300
-#define WM_TIMEOUT  1
+#define WM_MAX_CHK  1000
 
 #define FL_EXE      1
 #define FL_PPID     2
@@ -109,7 +110,6 @@ static int os_ok = 0;
 static char host_buf[MAX_NAME] = {0};
 static int host_ok = 0;
 static int wsl_ok = -1;
-static volatile sig_atomic_t stop_scan = 0;
 
 static inline void
 str_cpy(char *dst, const char *src, size_t max)
@@ -130,26 +130,20 @@ valid_pid(pid_t pid)
 }
 
 static void
-make_path(pid_t pid, const char *file, char *buf)
+secure_zero(void *ptr, size_t len)
 {
-    memcpy(buf, "/proc/", 6);
-    char *end = buf + 6;
-    char *start = end;
-    int temp = pid;
+    volatile unsigned char *p = ptr;
+    while (len--) *p++ = 0;
+}
 
-    do {
-        *end++ = '0' + (temp % 10);
-        temp /= 10;
-    } while (temp);
-
-    for (char *x = start, *y = end - 1; x < y; ++x, --y) {
-        char c = *x;
-        *x = *y;
-        *y = c;
+static void
+make_path(pid_t pid, const char *file, char *buf, size_t bufsize)
+{
+    if (!valid_pid(pid) || !file || !*file || strchr(file, '/')) {
+        buf[0] = '\0';
+        return;
     }
-
-    *end++ = '/';
-    while ((*end++ = *file++));
+    snprintf(buf, bufsize, "/proc/%d/%s", (int)pid, file);
 }
 
 static unsigned long long
@@ -164,8 +158,9 @@ fast_atoi(const char *str)
 static int
 parse_stat(pid_t pid, pid_t *ppid, unsigned long long *time)
 {
-    char path[64], buf[1024];
-    make_path(pid, "stat", path);
+    char path[64], buf[4096];
+    make_path(pid, "stat", path, sizeof(path));
+    if (!path[0]) return -1;
 
     int fd = open(path, O_RDONLY);
     if (fd < 0) return -1;
@@ -221,7 +216,8 @@ static int
 get_exe(pid_t pid, char *buf, size_t size)
 {
     char path[64];
-    make_path(pid, "exe", path);
+    make_path(pid, "exe", path, sizeof(path));
+    if (!path[0]) return -1;
     ssize_t len = readlink(path, buf, size - 1);
     if (len <= 0) return -1;
     buf[len] = '\0';
@@ -383,6 +379,23 @@ detect_wsl(void)
 {
     if (wsl_ok != -1) return wsl_ok;
     wsl_ok = 0;
+
+    if (getenv("WSLENV")) {
+        wsl_ok = 1;
+        return 1;
+    }
+
+    struct stat st;
+    if (stat("/mnt/wsl", &st) == 0) {
+        wsl_ok = 1;
+        return 1;
+    }
+
+    if (access("/proc/sys/fs/binfmt_misc/WSLInterop", F_OK) == 0) {
+        wsl_ok = 1;
+        return 1;
+    }
+
     char buf[512];
     int fd = open("/proc/sys/kernel/osrelease", O_RDONLY);
     if (fd >= 0) {
@@ -436,7 +449,8 @@ static int
 get_comm(pid_t pid, char *buf, size_t size)
 {
     char path[64];
-    make_path(pid, "comm", path);
+    make_path(pid, "comm", path, sizeof(path));
+    if (!path[0]) return -1;
 
     int fd = open(path, O_RDONLY);
     if (fd < 0) return -1;
@@ -452,19 +466,6 @@ get_comm(pid_t pid, char *buf, size_t size)
     if (len > 0 && buf[len - 1] == '\n') buf[len - 1] = '\0';
 
     return 0;
-}
-
-static void
-alarm_handler(int sig)
-{
-    (void)sig;
-    stop_scan = 1;
-}
-
-static int
-pid_cmp(const void *a, const void *b)
-{
-    return (*(const int *)b - *(const int *)a);
 }
 
 static void
@@ -490,18 +491,9 @@ fetch_wm(char *buf, size_t size)
     }
     closedir(dir);
 
-    qsort(candidates, count, sizeof(pid_t), pid_cmp);
-
-    struct sigaction sa = {0}, old;
-    sa.sa_handler = alarm_handler;
-    sigemptyset(&sa.sa_mask);
-    if (sigaction(SIGALRM, &sa, &old)) goto fail;
-
-    stop_scan = 0;
-    alarm(WM_TIMEOUT);
-
     char comm[MAX_NAME];
-    for (int i = 0; i < count && !stop_scan; i++) {
+    int checked = 0;
+    for (int i = 0; i < count && checked < WM_MAX_CHK; i++, checked++) {
         if (get_comm(candidates[i], comm, sizeof(comm))) continue;
         if (!*comm) continue;
 
@@ -511,17 +503,11 @@ fetch_wm(char *buf, size_t size)
                     str_cpy(buf, wms[j].id, size);
                     str_cpy(wm_buf, buf, sizeof(wm_buf));
                     wm_ok = 1;
-                    goto done;
+                    return;
                 }
             }
         }
     }
-    goto fail;
-
-done:
-    alarm(0);
-    sigaction(SIGALRM, &old, NULL);
-    return;
 
 fail:
     str_cpy(buf, "unknown", size);
@@ -608,8 +594,8 @@ print_version(void)
     printf("Copyright (C) %s Gurov\n", COPYRIGHT);
     printf("Licensed under GPL-3.0\n\n");
     printf("BUILD: %s %s UTC\n", __DATE__, __TIME__);
-    printf("CONFIG: CACHE=%d CHAIN=%d PID=%d TIMEOUT=%ds\n",
-           MAX_CACHE, MAX_CHAIN, MAX_PID, WM_TIMEOUT);
+    printf("CONFIG: CACHE=%d CHAIN=%d PID=%d MAX_CHK=%d\n",
+           MAX_CACHE, MAX_CHAIN, MAX_PID, WM_MAX_CHK);
 }
 
 static void
@@ -660,10 +646,19 @@ set_limits(void)
     return 0;
 }
 
+static int
+can_read_proc(void)
+{
+    return access("/proc/self/stat", R_OK) == 0;
+}
+
 static void
 cleanup(void)
 {
-    if (cache) munmap(cache, MAX_CACHE * sizeof(proc_t));
+    if (cache) {
+        secure_zero(cache, cache_len * sizeof(proc_t));
+        munmap(cache, MAX_CACHE * sizeof(proc_t));
+    }
 }
 
 int
@@ -676,6 +671,11 @@ main(int argc, char **argv)
         if (setuid(getuid()) || setgid(getgid())) return 1;
 
     if (set_limits()) fprintf(stderr, "Warn: limits failed\n");
+
+    if (!can_read_proc()) {
+        fprintf(stderr, "Error: cannot read /proc (hidepid enabled?)\n");
+        return 1;
+    }
 
     cache = mmap(NULL, MAX_CACHE * sizeof(proc_t),
                  PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
