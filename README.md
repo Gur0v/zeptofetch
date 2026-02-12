@@ -11,22 +11,23 @@
 </div>
 
 ## 🎯 Why zeptofetch?
-`zeptofetch` delivers system information in **under 1ms*** with a **32KB binary**. No scripts, no bloat, just pure C doing exactly what you need.
-While tools like neofetch take over 400ms and fastfetch needs 200KB+ binaries, zeptofetch gives you information 553x faster* with a fraction of the size.
+`zeptofetch` is a minimal system information tool written in C. It executes in under 1ms* with a 32KB binary—no dependencies, no shell scripts.
 
-<sub>*_Performance varies by hardware and system configuration. See [benchmarks](#benchmarks) for details._</sub>
+Compared to neofetch (~400ms) and fastfetch (~5ms, 200KB+ binary), zeptofetch prioritizes speed and minimal footprint.
+
+<sub>*Performance varies by hardware and system configuration. See [benchmarks](#benchmarks) for details.</sub>
 
 ## ✨ Features
-**Fast & Lightweight**
-- ⚡ Runs in ~0.73 ms (553× faster than neofetch)
-- 📦 Only 32 KB in size
-- 💾 No dependencies needed
+**Performance**
+- ⚡ ~0.73 ms execution time (553× faster than neofetch)
+- 📦 32 KB binary size
+- 💾 Zero external dependencies
 
-**Modern & Reliable**
-- 🎨 Easy color customization via `config.h`
-- 🪟 **Native WSL Support** (Windows Terminal & WSLg detection)
-- 🐧 Written in pure, minified C (C99)
-- ✅ Production ready and tested
+**Design**
+- 🎨 Customizable colors via `config.h` at compile time
+- 🔒 Security hardening with memory protection and resource limits
+- 🐧 Pure C99 with efficient process scanning
+- ⚙️ Memory-mapped process cache with secure cleanup
 
 ## 📊 Benchmarks
 Tested with [hyperfine](https://github.com/sharkdp/hyperfine) on the following system:
@@ -37,13 +38,10 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine) on the following s
 | Component | Specification |
 |-----------|--------------|
 | **CPU** | AMD Ryzen 5 5600 (6-core, 12-thread) |
-| **GPU** | AMD Radeon RX 7600 |
 | **RAM** | 32 GB DDR4 @ 3200MHz |
-| **Storage** | 931.51 GB SSD |
 | **Kernel** | 6.17.7-lqx1-1-lqx |
 | **OS** | Arch Linux |
 | **Desktop** | KDE Plasma 6.5.2 (Wayland) |
-| **Motherboard** | MSI B550-A PRO (MS-7C56) |
 
 </details>
 
@@ -53,14 +51,13 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine) on the following s
 | fastfetch      | 6.7ms ± 1.0ms         | ~200 KB     | `61x faster`          |
 | neofetch       | 405.1ms ± 21.0ms      | ~50 KB      | *baseline*            |
 
-<sub>*_Performance varies based on hardware, system load, CPU scheduler, kernel, desktop environment, and terminal emulator._</sub>
+<sub>*Performance varies based on hardware, system load, kernel, desktop environment, and terminal emulator. Benchmarks shown are from a statically-linked zeptofetch v1.9 binary.</sub>
 
 ## 🚀 Installation
 
 ### Manual Compilation
 
-For best performance and smallest binary size, compile manually with your system's native optimizations:
-
+To build the latest version from source:
 ```bash
 git clone https://gitlab.archlinux.org/gurov/zeptofetch.git
 cd zeptofetch
@@ -68,13 +65,12 @@ make
 sudo make install
 ```
 
+This builds from the main branch, which may include release candidates. For production use, download a tagged release from the [releases page](https://gitlab.archlinux.org/gurov/zeptofetch/-/releases).
+
 ### Arch Linux (AUR)
-
-For Arch Linux users, zeptofetch is available in the AUR:
-
 ```bash
-paru -S zeptofetch        # Build from source
-paru -S zeptofetch-git    # Latest from git
+paru -S zeptofetch        # Latest stable release
+paru -S zeptofetch-git    # Development version
 ```
 
 ## 📖 Usage
@@ -114,21 +110,22 @@ sudo make install
 
 ## 🔍 Technical Details
 
-### Architecture Highlights
+### Implementation
 
-- **Minified Source**: Aggressive symbol reduction for cleaner, smaller code.
-- **Smart caching**: `mmap` based allocation for process chain information.
-- **Direct /proc access**: No subprocess spawning or shell execution.
-- **Optimized lookups**: Unified list matchers with length pre-checks.
-- **Memory efficient**: Fixed-size stack allocations, predictable memory usage.
+- Compact source with minimal symbol overhead
+- mmap-based cache for process information (256 entry limit)
+- Direct `/proc` reads without subprocess spawning
+- Pre-computed string lengths for O(1) prefix matching
+- Stack allocations with compile-time size limits
 
-### Detection Methods
+### Detection
 
-- **OS**: Parses `/etc/os-release` in a single pass.
-- **Shell**: Walks parent process chain via `/proc/[pid]/exe`.
-- **Terminal**: Scans ancestry for known terminals; detects `WT_SESSION` for Windows Terminal.
-- **WM**: Direct `/proc` scanning with caching; detects `WAYLAND_DISPLAY` for WSLg.
-- **Kernel**: Uses `uname()` syscall.
+- **OS**: Single-pass `/etc/os-release` parsing with `PRETTY_NAME` fallback
+- **Shell**: Process tree walk via `/proc/[pid]/exe` symlinks with `$SHELL` fallback
+- **Terminal**: Ancestor scanning with `TERM_PROGRAM`/`TERMINAL` environment checks
+- **WM**: `/proc` scan (PIDs 300-100000, max 1000 checks) with result caching
+- **WSL**: Multi-method detection (`WSLENV`, `/mnt/wsl`, `binfmt_misc`, kernel strings)
+- **Kernel**: `uname()` syscall with error handling
 
 ## 🐧 Requirements
 
@@ -142,21 +139,19 @@ sudo make install
 
 ## 🤝 Contributing
 
-This project is developed and maintained on **GitLab**:
+This project is developed on the **Arch Linux GitLab**:
 
 👉 https://gitlab.archlinux.org/gurov/zeptofetch
 
-The GitHub repository is a **read-only mirror** used for visibility only.
+The GitHub repository is a read-only mirror for visibility.
 
-Please submit issues, feature requests, and merge requests on GitLab.
+**How to contribute:**
+- Report bugs or suggest features
+- Improve documentation
+- Submit merge requests
+- Test on different distributions
 
-Contributions are welcome. You can help by:
-
-- 🐛 Reporting bugs
-- 💡 Suggesting features
-- 📝 Improving documentation
-- 🔧 Submitting merge requests
-- 🧪 Testing on new distributions
+All issues and merge requests should be submitted on the Arch Linux GitLab.
 
 ## 📜 License
 
