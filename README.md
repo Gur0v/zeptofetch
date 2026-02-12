@@ -4,7 +4,7 @@
 
 *Blazingly fast, ultra-minimal system information tool for Linux*
 
-![zeptofetch v1.14](https://roblo-x.com/3fa4j3ar.webp)
+![zeptofetch v1.17-rc1](https://i.e-z.host/a4t4aoly.webp)
 
 [Features](#features) • [Benchmarks](#benchmarks) • [Installation](#installation) • [Usage](#usage) • [Configuration](#configuration)
 
