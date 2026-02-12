@@ -1,7 +1,6 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <pwd.h>
-#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,8 +15,8 @@
 #include <limits.h>
 #include "config.h"
 
-#define VERSION     "v1.17-rc1"
-#define COPYRIGHT   "2026"
+#define VERSION     "v1.17"
+#define COPYRIGHT   "2024-2026"
 
 #define MAX_PATH    4096
 #define MAX_CACHE   256
@@ -523,15 +522,18 @@ parse_os_field(const char *key, size_t klen, char *line, char *out, size_t size)
     char *end = strrchr(line, '"');
 
     if (start && end && start < end) {
+        size_t vlen = strnlen(start + 1, size);
+        if (vlen == 0) return -1;
         *end = '\0';
-        size_t rem = strnlen(start + 1, size);
-        str_cpy(out, start + 1, MIN(rem + 1, size));
+        str_cpy(out, start + 1, MIN(vlen + 1, size));
         return 0;
     }
 
     char *ptr = line + klen;
     size_t len = strnlen(ptr, MAX_LINE - klen);
     if (len > 0 && ptr[len - 1] == '\n') ptr[len - 1] = '\0';
+    while (*ptr == ' ' || *ptr == '\t') ptr++;
+    if (!*ptr) return -1;
     str_cpy(out, ptr, size);
     return 0;
 }
@@ -550,15 +552,24 @@ fetch_os(char *buf, size_t size)
         goto done;
     }
 
+    struct stat st;
+    if (fstat(fileno(f), &st) == 0 && st.st_size == 0) {
+        str_cpy(buf, "Linux", size);
+        fclose(f);
+        goto done;
+    }
+
     char line[MAX_LINE];
     buf[0] = '\0';
+    int read_any = 0;
 
     while (fgets(line, sizeof(line), f)) {
+        read_any = 1;
         if (!parse_os_field("PRETTY_NAME=", 12, line, buf, size)) break;
         if (!*buf) parse_os_field("NAME=", 5, line, buf, size);
     }
 
-    if (!*buf) str_cpy(buf, "Linux", size);
+    if (!read_any || !*buf) str_cpy(buf, "Linux", size);
     fclose(f);
 
 done:
@@ -574,6 +585,9 @@ get_tty(char *buf, size_t size, char *wm, size_t wm_size)
     buf[len] = '\0';
 
     if (strncmp(buf, "/dev/tty", 8) == 0 && buf[8] >= '0' && buf[8] <= '9') {
+        char termname[MAX_NAME];
+        base_name(buf, termname, sizeof(termname));
+        str_cpy(buf, termname, size);
         str_cpy(wm, "none", wm_size);
         return 1;
     }
@@ -692,8 +706,9 @@ main(int argc, char **argv)
     char shell[MAX_NAME], wm[MAX_NAME], term[MAX_NAME];
     char os[MAX_LINE];
     struct utsname un;
-
-    if (uname(&un)) str_cpy(un.release, "unknown", sizeof(un.release));
+    if (uname(&un) != 0) {
+        str_cpy(un.release, "unknown", sizeof(un.release));
+    }
 
     fetch_user(user, sizeof(user));
     fetch_host(host, sizeof(host));
