@@ -1,5 +1,6 @@
 #include <dirent.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <pwd.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -12,10 +13,10 @@
 #include <sys/utsname.h>
 #include <time.h>
 #include <unistd.h>
-#include <limits.h>
+
 #include "config.h"
 
-#define VERSION     "v1.17"
+#define VERSION     "v1.18-rc1"
 #define COPYRIGHT   "2024-2026"
 
 #define MAX_PATH    4096
@@ -276,14 +277,15 @@ str_pfx(const char *s, const char *p, size_t len)
     return s && p && strncmp(s, p, len) == 0;
 }
 
-static int
-match_list(const char *name, const match_t *list, size_t count)
+static const char *
+find_match(const char *name, const match_t *list, size_t count)
 {
-    if (!name || !*name) return 0;
-    for (size_t i = 0; i < count; ++i)
+    if (!name || !*name) return NULL;
+    for (size_t i = 0; i < count; ++i) {
         if (name[0] == list[i].id[0] && (str_eq(name, list[i].id) || str_pfx(name, list[i].id, list[i].len)))
-            return 1;
-    return 0;
+            return list[i].id;
+    }
+    return NULL;
 }
 
 static void
@@ -328,7 +330,7 @@ fetch_shell(proc_t *chain, size_t count, char *buf, size_t size)
     for (size_t i = 0; i < count; ++i) {
         if (!(chain[i].flags & FL_EXE)) continue;
         base_name(chain[i].exe, tmp, sizeof(tmp));
-        if (match_list(tmp, shells, ARRLEN(shells))) {
+        if (find_match(tmp, shells, ARRLEN(shells))) {
             str_cpy(buf, tmp, size);
             return;
         }
@@ -355,15 +357,12 @@ fetch_term(proc_t *chain, size_t count, char *buf, size_t size)
     for (size_t i = 1; i < count; ++i) {
         if (!(chain[i].flags & FL_EXE)) continue;
         base_name(chain[i].exe, tmp, sizeof(tmp));
-        if (match_list(tmp, shells, ARRLEN(shells))) continue;
+        if (find_match(tmp, shells, ARRLEN(shells))) continue;
 
-        if (match_list(tmp, terms, ARRLEN(terms))) {
-            for (size_t j = 0; j < ARRLEN(terms); ++j) {
-                if (str_eq(tmp, terms[j].id) || str_pfx(tmp, terms[j].id, terms[j].len)) {
-                    str_cpy(buf, terms[j].id, size);
-                    return;
-                }
-            }
+        const char *match = find_match(tmp, terms, ARRLEN(terms));
+        if (match) {
+            str_cpy(buf, match, size);
+            return;
         }
         if (tmp[0]) {
             str_cpy(buf, tmp, size);
@@ -371,6 +370,14 @@ fetch_term(proc_t *chain, size_t count, char *buf, size_t size)
         }
     }
     str_cpy(buf, "unknown", size);
+}
+
+static int
+detect_ssh(void)
+{
+    return getenv("SSH_CLIENT") != NULL ||
+           getenv("SSH_TTY") != NULL ||
+           getenv("SSH_CONNECTION") != NULL;
 }
 
 static int
@@ -385,12 +392,7 @@ detect_wsl(void)
     }
 
     struct stat st;
-    if (stat("/mnt/wsl", &st) == 0) {
-        wsl_ok = 1;
-        return 1;
-    }
-
-    if (access("/proc/sys/fs/binfmt_misc/WSLInterop", F_OK) == 0) {
+    if (stat("/mnt/wsl", &st) == 0 || access("/proc/sys/fs/binfmt_misc/WSLInterop", F_OK) == 0) {
         wsl_ok = 1;
         return 1;
     }
@@ -496,15 +498,12 @@ fetch_wm(char *buf, size_t size)
         if (get_comm(candidates[i], comm, sizeof(comm))) continue;
         if (!*comm) continue;
 
-        if (match_list(comm, wms, ARRLEN(wms))) {
-            for (size_t j = 0; j < ARRLEN(wms); ++j) {
-                if (str_eq(comm, wms[j].id) || str_pfx(comm, wms[j].id, wms[j].len)) {
-                    str_cpy(buf, wms[j].id, size);
-                    str_cpy(wm_buf, buf, sizeof(wm_buf));
-                    wm_ok = 1;
-                    return;
-                }
-            }
+        const char *match = find_match(comm, wms, ARRLEN(wms));
+        if (match) {
+            str_cpy(buf, match, size);
+            str_cpy(wm_buf, buf, sizeof(wm_buf));
+            wm_ok = 1;
+            return;
         }
     }
 
@@ -706,9 +705,9 @@ main(int argc, char **argv)
     char shell[MAX_NAME], wm[MAX_NAME], term[MAX_NAME];
     char os[MAX_LINE];
     struct utsname un;
-    if (uname(&un) != 0) {
+
+    if (uname(&un) != 0)
         str_cpy(un.release, "unknown", sizeof(un.release));
-    }
 
     fetch_user(user, sizeof(user));
     fetch_host(host, sizeof(host));
@@ -721,6 +720,9 @@ main(int argc, char **argv)
     fetch_os(os, sizeof(os));
 
     if (get_tty(term, sizeof(term), wm, sizeof(wm))) {
+    } else if (detect_ssh()) {
+        str_cpy(term, "ssh", sizeof(term));
+        str_cpy(wm, "none", sizeof(wm));
     } else if (detect_wsl()) {
         fetch_wsl_term(term, sizeof(term));
         if (!*term) fetch_term(chain, count, term, sizeof(term));
