@@ -134,8 +134,10 @@ sudo make install
 - **libc**: glibc, musl, or compatible
 - **Build**: GCC or Clang
 
-**Supported**: Linux, WSL1, WSL2 (Native detection).
-**Not supported**: Android, BSD, macOS.
+**Supported**: Linux, WSL1, WSL2.
+**Not supported**: Termux (Android)*, BSD, macOS.
+
+<sub>*Termux lacks full `/proc` support and imposes strict memory mapping restrictions that make porting non-trivial. While the program may compile, it will not run correctly.</sub>
 
 ## 🤝 Contributing
 
