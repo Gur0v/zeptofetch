@@ -1,5 +1,5 @@
 .POSIX:
-CC      := $(shell which gcc 2>/dev/null || which clang 2>/dev/null || echo gcc)
+CC      = gcc
 CFLAGS  = -march=native -O3 -flto -pipe
 LDFLAGS = -Wl,-z,relro,-z,now,-z,noexecstack,--as-needed,--gc-sections,--hash-style=gnu
 
