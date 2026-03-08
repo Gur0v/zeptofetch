@@ -10,16 +10,6 @@ A system information tool for Linux. Written in C, no dependencies, runs in unde
 
 ---
 
-## What it shows
-
-```
-OS · Kernel · Shell · WM · Terminal
-```
-
-Handles WSL1/WSL2, SSH sessions, and raw TTY consoles. Colors are compile-time via `config.h` and automatically suppressed when stdout is piped or redirected.
-
----
-
 ## Benchmarks
 
 Tested with [hyperfine](https://github.com/sharkdp/hyperfine).
