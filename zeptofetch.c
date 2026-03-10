@@ -16,7 +16,7 @@
 
 #include "config.h"
 
-#define VERSION     "v1.18"
+#define VERSION     "v1.19"
 #define COPYRIGHT   "2024-2026"
 
 #define MAX_PATH    4096
@@ -427,6 +427,31 @@ detect_wsl(void)
     return wsl_result;
 }
 
+static int
+detect_container(void)
+{
+    char *env = getenv("CONTAINER_ID");
+    if (env && *env) return 1;
+
+    struct stat st;
+    if (access("/.dockerenv", F_OK) == 0) return 1;
+    if (stat("/run/.containerenv", &st) == 0) return 1;
+
+    char buf[512];
+    int fd = open("/proc/1/cgroup", O_RDONLY);
+    if (fd >= 0) {
+        ssize_t r = read(fd, buf, sizeof(buf) - 1);
+        close(fd);
+        if (r > 0) {
+            buf[r] = '\0';
+            if (strstr(buf, "docker") || strstr(buf, "lxc") ||
+                strstr(buf, "containerd") || strstr(buf, "podman"))
+                return 1;
+        }
+    }
+    return 0;
+}
+
 static void
 fetch_wsl_wm(char *buf, size_t size)
 {
@@ -720,6 +745,9 @@ main(int argc, char **argv)
     fetch_os(os, sizeof(os));
 
     if (detect_console_tty(term, sizeof(term), wm, sizeof(wm))) {
+    } else if (detect_container()) {
+        str_cpy(wm, "none", sizeof(wm));
+        str_cpy(term, "container", sizeof(term));
     } else if (detect_ssh()) {
         str_cpy(term, "ssh", sizeof(term));
         str_cpy(wm, "none", sizeof(wm));
