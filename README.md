@@ -88,7 +88,7 @@ make clean && make && sudo make install
 
 ~700 lines of C99.
 
-> **Looking for even faster numbers?** If you're willing to trade some accuracy for speed, check out [zeptofetch-u](https://github.com/Gur0v/zeptofetch-u) — a stripped-down variant that runs in ~300 µs.
+> **Looking for even faster numbers?** If you're willing to trade some accuracy for speed, check out [zeptofetch-u](https://github.com/Gur0v/zeptofetch-u) — a stripped-down variant that runs in ~200 µs.
 
 ---
 
