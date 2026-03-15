@@ -16,7 +16,7 @@
 
 #include "config.h"
 
-#define VERSION     "v1.19"
+#define VERSION     "v1.20"
 #define COPYRIGHT   "2024-2026"
 
 #define MAX_PATH    4096
@@ -99,7 +99,7 @@ static const match_t wms[] = {
     {"lfwm", 4}, {"metacity", 8}, {"notion", 6}, {"olivetti", 8},
     {"plwm", 4}, {"snapwm", 6}, {"tinywm", 6}, {"trayer", 6},
     {"twm", 3}, {"vwm", 3}, {"waimea", 6}, {"wmii", 4},
-    {"wmx", 3}, {"acme", 4},
+    {"wmx", 3}, {"acme", 4}, {"mango", 5},
 };
 
 static proc_t *cache = NULL;
