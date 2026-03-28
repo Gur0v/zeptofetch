@@ -82,13 +82,11 @@ make clean && make && sudo make install
 
 **OS** — reads `PRETTY_NAME` from `/etc/os-release`, falls back to `NAME`, then `"Linux"`.
 
-**WSL** — checked via `WSLENV`, `/mnt/wsl`, `binfmt_misc`, and kernel version strings.
+**WSL2** — checked via `WSLENV`, `/mnt/wsl`, `binfmt_misc`, and kernel version strings.
 
 **Privileges** — `PR_SET_NO_NEW_PRIVS` and `PR_SET_DUMPABLE` set at startup. `RLIMIT_AS`, `RLIMIT_CPU`, and `RLIMIT_NOFILE` enforced. Process cache is `mmap`-allocated and zeroed on exit.
 
-~700 lines of C99.
-
-> **Looking for even faster numbers?** If you're willing to trade some accuracy for speed, check out [zeptofetch-u](https://github.com/Gur0v/zeptofetch-u) — a stripped-down variant that runs in ~200 µs.
+> **Looking for even faster numbers?** If you're willing to trade some accuracy for speed, check out [zeptofetch-u](https://github.com/Gur0v/zeptofetch-u) — a even more stripped-down variant that runs in ~200 µs.
 
 ---
 
@@ -98,7 +96,7 @@ make clean && make && sudo make install
 - glibc, musl, or compatible
 - GCC or Clang
 
-WSL1 and WSL2 are supported. BSD, macOS, and Termux are not.
+WSL2 support is limited. BSD, macOS, and Termux are not.
 
 ---
 
@@ -106,7 +104,7 @@ WSL1 and WSL2 are supported. BSD, macOS, and Termux are not.
 
 Primary repo: https://gitlab.archlinux.org/gurov/zeptofetch
 
-GitHub is a read-only mirror. Issues and merge requests go on GitLab.
+GitHub is a read-only mirror. Issues and merge requests go on Arch Linux GitLab.
 
 ---
 
