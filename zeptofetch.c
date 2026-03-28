@@ -16,7 +16,7 @@
 
 #include "config.h"
 
-#define VERSION     "v1.20"
+#define VERSION     "v1.21"
 #define COPYRIGHT   "2024-2026"
 
 #define MAX_PATH    4096
@@ -370,6 +370,13 @@ fetch_term(proc_t *chain, size_t count, char *buf, size_t size)
             return;
         }
     }
+
+    env = getenv("TERM");
+    if (env && *env) {
+        str_cpy(buf, env, size);
+        return;
+    }
+
     str_cpy(buf, "unknown", size);
 }
 
@@ -465,10 +472,18 @@ fetch_wsl_wm(char *buf, size_t size)
 static void
 fetch_wsl_term(char *buf, size_t size)
 {
-    if (getenv("WT_SESSION") || getenv("WT_PROFILE_ID"))
+    if (getenv("WT_SESSION") || getenv("WT_PROFILE_ID")) {
         str_cpy(buf, "Windows Terminal", size);
-    else
-        buf[0] = '\0';
+        return;
+    }
+
+    char *env = getenv("TERM");
+    if (env && *env) {
+        str_cpy(buf, env, size);
+        return;
+    }
+
+    buf[0] = '\0';
 }
 
 static int
