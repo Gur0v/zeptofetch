@@ -96,7 +96,7 @@ make clean && make && sudo make install
 - glibc, musl, or compatible
 - GCC or Clang
 
-WSL2 support is limited. BSD, macOS, and Termux are not.
+WSL2 support is limited. BSD, macOS, and Termux are not supported.
 
 ---
 
