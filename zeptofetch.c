@@ -550,8 +550,11 @@ static int
 parse_os_field(const char *key, size_t klen, char *line, char *out, size_t size)
 {
     if (strncmp(line, key, klen)) return -1;
-    char *start = strchr(line, '"');
-    char *end = strrchr(line, '"');
+
+    char q = '"';
+    char *start = strchr(line, q);
+    if (!start) { q = '\''; start = strchr(line, q); }
+    char *end = start ? strrchr(line, q) : NULL;
 
     if (start && end && start < end) {
         size_t vlen = strnlen(start + 1, size);
