@@ -16,7 +16,7 @@
 
 #include "config.h"
 
-#define VERSION     "v1.21"
+#define VERSION     "v1.22"
 #define COPYRIGHT   "2024-2026"
 
 #define MAX_PATH    4096
