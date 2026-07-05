@@ -55,17 +55,17 @@ paru -S zeptofetch-git  # git HEAD
 
 ## How it works
 
-**Shell:** walks `/proc/[pid]/exe` up the process tree. Falls back to `$SHELL` if nothing matches.
+**Shell:** walks `/proc/[pid]/exe` up the process tree. Falls back to `$SHELL`.
 
-**Terminal:** same tree walk, skipping known shells. Checks `TERM_PROGRAM` and `TERMINAL` first.
+**Terminal:** checks common terminal env hints, then walks the process tree while skipping shells/wrappers.
 
 **WM:** checks compositor env hints, then scans numeric `/proc` entries against a known list.
 
-**OS:** reads `PRETTY_NAME` from `/etc/os-release`, falls back to `NAME`, then `"Linux"`.
+**OS:** reads `PRETTY_NAME` from `/etc/os-release` or `/usr/lib/os-release`, falls back to `NAME`, then `"Linux"`.
 
 **WSL2:** checked via `WSLENV`, `/mnt/wsl`, `binfmt_misc`, and kernel version strings.
 
-**Privileges:** `PR_SET_NO_NEW_PRIVS` and `PR_SET_DUMPABLE` set at startup. `RLIMIT_AS`, `RLIMIT_CPU`, and `RLIMIT_NOFILE` enforced.
+**Privileges:** `PR_SET_NO_NEW_PRIVS` and `PR_SET_DUMPABLE` set at startup. `RLIMIT_AS`, `RLIMIT_CPU`, `RLIMIT_NOFILE`, and `RLIMIT_CORE` enforced.
 
 > For accuracy/speed tradeoffs, see [zeptofetch-u](https://github.com/Gur0v/zeptofetch-u), a more stripped-down variant that runs in ~200 µs.
 
