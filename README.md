@@ -13,20 +13,20 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine).
 
 | Tool | Mean | Binary |
 |---|---|---|
-| **zeptofetch** | **571.7 µs ± 44.8 µs** | 27 KB |
-| fastfetch | 6.7 ms ± 1.0 ms | ~200 KB |
-| neofetch | 405.1 ms ± 21.0 ms | ~50 KB |
+| **zeptofetch** | **506.9 µs ± 53.3 µs** | 32 KB |
+| fastfetch | 5.6 ms ± 0.4 ms | ~200 KB |
+| neofetch | 194.3 ms ± 24.8 ms | ~50 KB |
 
 <details>
 <summary>Test system</summary>
 
 | | |
 |---|---|
-| CPU | AMD Ryzen 5 5600 |
-| RAM | 32 GB DDR4 @ 3200 MHz |
-| Kernel | 6.17.7-lqx1-1-lqx |
-| OS | Arch Linux |
-| Desktop | KDE Plasma 6.5.2 (Wayland) |
+| CPU | AMD Ryzen 5 5600 (12) @ 4.47 GHz |
+| RAM | 32 GB (31.26 GiB) |
+| Kernel | 7.0.14-lqx2-2-lqx |
+| OS | Artix Linux |
+| Desktop | Sway 1.12 (Wayland) |
 
 </details>
 
