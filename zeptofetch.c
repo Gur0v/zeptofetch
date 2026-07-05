@@ -1,61 +1,49 @@
 #include <dirent.h>
 #include <fcntl.h>
-#include <limits.h>
 #include <pwd.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/utsname.h>
-#include <time.h>
 #include <unistd.h>
 
 #include "config.h"
 
-#define VERSION     "v1.22"
+#define VERSION     "v2.0"
 #define COPYRIGHT   "2024-2026"
 
 #define MAX_PATH    4096
-#define MAX_CACHE   256
 #define MAX_CHAIN   64
 #define MAX_LINE    128
 #define MAX_NAME    64
 #define MAX_PID     4194304
-#define MIN_WM_PID  300
-#define MAX_WM_PID  100000
-
-#define NOT_CACHED  0
-#define IS_CACHED   1
-
-#define FL_EXE      1
-#define FL_PPID     2
-#define FL_TIME     4
 
 #define ARRLEN(a)   (sizeof(a) / sizeof((a)[0]))
-#define MIN(a, b)   ((a) < (b) ? (a) : (b))
-
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-_Static_assert(MAX_CACHE <= MAX_PID, "cache > pid space");
-#else
-typedef char sz_chk[(MAX_CACHE <= MAX_PID) ? 1 : -1];
-#endif
 
 typedef struct {
     pid_t pid;
     pid_t ppid;
     char exe[MAX_PATH];
-    unsigned long long time;
-    uint8_t flags;
 } proc_t;
 
 typedef struct {
     const char *id;
     size_t len;
 } match_t;
+
+typedef struct {
+    char user[MAX_NAME];
+    char host[MAX_NAME];
+    char os[MAX_LINE];
+    char kernel[MAX_NAME];
+    char shell[MAX_NAME];
+    char wm[MAX_NAME];
+    char term[MAX_NAME];
+} info_t;
 
 static const match_t shells[] = {
     {"bash", 4}, {"zsh", 3}, {"fish", 4}, {"dash", 4},
@@ -102,124 +90,54 @@ static const match_t wms[] = {
     {"wmx", 3}, {"acme", 4}, {"mango", 5},
 };
 
-static proc_t *cache = NULL;
-static size_t cache_len = 0;
-static char wm_buf[MAX_NAME] = {0};
-static int wm_cached = NOT_CACHED;
-static char os_buf[MAX_LINE] = {0};
-static int os_cached = NOT_CACHED;
-static char host_buf[MAX_NAME] = {0};
-static int host_cached = NOT_CACHED;
-static int wsl_checked = 0;
-static int wsl_result = 0;
-
-static inline void
-str_cpy(char *dst, const char *src, size_t max)
+static void
+str_cpy(char *dst, const char *src, size_t size)
 {
-    if (!dst || !src || !max) return;
+    if (!dst || !src || size == 0) return;
+
     size_t i = 0;
-    while (i < max - 1 && src[i]) {
-        dst[i] = (src[i] >= 32 && src[i] <= 126) ? src[i] : '_';
+    while (i + 1 < size && src[i]) {
+        unsigned char c = (unsigned char)src[i];
+        dst[i] = (c >= 32 && c <= 126) ? (char)c : '_';
         i++;
     }
     dst[i] = '\0';
 }
 
-static inline int
+static int
+str_eq(const char *a, const char *b)
+{
+    return a && b && strcmp(a, b) == 0;
+}
+
+static int
 valid_pid(pid_t pid)
 {
     return pid > 0 && pid <= MAX_PID;
 }
 
-static void
-secure_zero(void *ptr, size_t len)
+static unsigned long
+fast_atoul(const char *s)
 {
-    volatile unsigned char *p = ptr;
-    while (len--) *p++ = 0;
+    unsigned long n = 0;
+    while (*s >= '0' && *s <= '9')
+        n = n * 10 + (unsigned long)(*s++ - '0');
+    return n;
 }
 
 static void
-make_path(pid_t pid, const char *file, char *buf, size_t bufsize)
+proc_path(pid_t pid, const char *file, char *buf, size_t size)
 {
     if (!valid_pid(pid) || !file || !*file || strchr(file, '/')) {
-        buf[0] = '\0';
+        if (size) buf[0] = '\0';
         return;
     }
-    snprintf(buf, bufsize, "/proc/%d/%s", (int)pid, file);
-}
-
-static unsigned long long
-fast_atoi(const char *str)
-{
-    unsigned long long res = 0;
-    while (*str >= '0' && *str <= '9')
-        res = res * 10 + (*str++ - '0');
-    return res;
+    snprintf(buf, size, "/proc/%d/%s", (int)pid, file);
 }
 
 static int
-parse_stat(pid_t pid, pid_t *ppid, unsigned long long *time)
+read_link(const char *path, char *buf, size_t size)
 {
-    char path[64], buf[4096];
-    make_path(pid, "stat", path, sizeof(path));
-    if (!path[0]) return -1;
-
-    int fd = open(path, O_RDONLY);
-    if (fd < 0) return -1;
-
-    ssize_t r = read(fd, buf, sizeof(buf) - 1);
-    close(fd);
-
-    if (r <= 0) return -1;
-    buf[r] = '\0';
-
-    char *ptr = strrchr(buf, ')');
-    if (!ptr || ptr[1] != ' ') return -1;
-    ptr += 2;
-
-    if (!*ptr || !*(++ptr)) return -1;
-    ptr++;
-
-    *ppid = (pid_t)fast_atoi(ptr);
-    if (!valid_pid(*ppid)) *ppid = -1;
-
-    for (int i = 0; i < 18; ++i) {
-        while (*ptr && *ptr != ' ') ptr++;
-        if (!*ptr) return -1;
-        ptr++;
-    }
-
-    *time = fast_atoi(ptr);
-    return 0;
-}
-
-static proc_t *
-cache_get(pid_t pid)
-{
-    for (size_t i = 0; i < cache_len; ++i)
-        if (cache[i].pid == pid) return &cache[i];
-    return NULL;
-}
-
-static proc_t *
-cache_add(pid_t pid)
-{
-    if (cache_len >= MAX_CACHE) return NULL;
-    proc_t *entry = &cache[cache_len++];
-    entry->pid = pid;
-    entry->ppid = -1;
-    entry->exe[0] = '\0';
-    entry->time = 0;
-    entry->flags = 0;
-    return entry;
-}
-
-static int
-get_exe(pid_t pid, char *buf, size_t size)
-{
-    char path[64];
-    make_path(pid, "exe", path, sizeof(path));
-    if (!path[0]) return -1;
     ssize_t len = readlink(path, buf, size - 1);
     if (len <= 0) return -1;
     buf[len] = '\0';
@@ -227,66 +145,82 @@ get_exe(pid_t pid, char *buf, size_t size)
 }
 
 static int
-get_proc(pid_t pid, proc_t *out)
+read_first_line(const char *path, char *buf, size_t size)
 {
-    if (!valid_pid(pid)) return -1;
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) return -1;
 
-    proc_t *cached = cache_get(pid);
-    if (cached) {
-        if (out != cached) *out = *cached;
-        return 0;
-    }
+    ssize_t n = read(fd, buf, size - 1);
+    close(fd);
 
-    proc_t *entry = cache_add(pid);
-    if (!entry) return -1;
+    if (n <= 0) return -1;
+    buf[n] = '\0';
 
-    if (parse_stat(pid, &entry->ppid, &entry->time) == 0)
-        entry->flags |= (FL_TIME | FL_PPID);
+    size_t len = strcspn(buf, "\n");
+    buf[len] = '\0';
+    return 0;
+}
 
-    if (get_exe(pid, entry->exe, sizeof(entry->exe)) == 0)
-        entry->flags |= FL_EXE;
+static int
+read_proc(pid_t pid, proc_t *p)
+{
+    char path[64], buf[4096];
 
-    *out = *entry;
+    if (!valid_pid(pid) || !p) return -1;
+
+    p->pid = pid;
+    p->ppid = -1;
+    p->exe[0] = '\0';
+
+    proc_path(pid, "stat", path, sizeof(path));
+    if (read_first_line(path, buf, sizeof(buf)) != 0) return -1;
+
+    char *rparen = strrchr(buf, ')');
+    if (!rparen || rparen[1] != ' ' || !rparen[2] || rparen[3] != ' ')
+        return -1;
+
+    p->ppid = (pid_t)fast_atoul(rparen + 4);
+    if (!valid_pid(p->ppid)) p->ppid = -1;
+
+    proc_path(pid, "exe", path, sizeof(path));
+    (void)read_link(path, p->exe, sizeof(p->exe));
+
     return 0;
 }
 
 static size_t
-build_chain(pid_t start, proc_t *list, size_t max)
+build_chain(proc_t *chain, size_t max)
 {
     size_t count = 0;
-    pid_t curr = start;
+    pid_t pid = getpid();
 
-    while (valid_pid(curr) && count < max) {
-        if (get_proc(curr, &list[count]) != 0) break;
-        pid_t next = -1;
-        if ((list[count].flags & FL_PPID) &&
-            list[count].ppid != curr &&
-            valid_pid(list[count].ppid))
-            next = list[count].ppid;
+    while (valid_pid(pid) && count < max) {
+        if (read_proc(pid, &chain[count]) != 0) break;
+
+        pid_t next = chain[count].ppid;
         count++;
-        if (!valid_pid(next)) break;
-        curr = next;
-    }
-    return count;
-}
 
-static inline int
-str_eq(const char *a, const char *b)
-{
-    return a && b && strcmp(a, b) == 0;
+        if (next == pid || !valid_pid(next)) break;
+        pid = next;
+    }
+
+    return count;
 }
 
 static const char *
 find_match(const char *name, const match_t *list, size_t count)
 {
     if (!name || !*name) return NULL;
-    for (size_t i = 0; i < count; ++i) {
+
+    for (size_t i = 0; i < count; i++) {
         if (name[0] != list[i].id[0]) continue;
         if (strncmp(name, list[i].id, list[i].len) != 0) continue;
+
         char sep = name[list[i].len];
         if (sep == '\0' || sep == '-' || sep == '.' || sep == '_')
             return list[i].id;
     }
+
     return NULL;
 }
 
@@ -307,40 +241,90 @@ fetch_user(char *buf, size_t size)
 static void
 fetch_host(char *buf, size_t size)
 {
-    if (host_cached) {
-        str_cpy(buf, host_buf, size);
-        return;
-    }
     if (gethostname(buf, size) != 0)
         str_cpy(buf, "localhost", size);
     else
         buf[size - 1] = '\0';
-    str_cpy(host_buf, buf, sizeof(host_buf));
-    host_cached = IS_CACHED;
+}
+
+static int
+parse_os_value(const char *key, char *line, char *out, size_t size)
+{
+    size_t klen = strlen(key);
+    if (strncmp(line, key, klen) != 0) return -1;
+
+    char *value = line + klen;
+    value[strcspn(value, "\n")] = '\0';
+
+    if ((*value == '"' || *value == '\'') && value[1]) {
+        char quote = *value++;
+        char *end = strrchr(value, quote);
+        if (end) *end = '\0';
+    }
+
+    if (!*value) return -1;
+    str_cpy(out, value, size);
+    return 0;
 }
 
 static void
-fetch_shell(proc_t *chain, size_t count, char *buf, size_t size)
+fetch_os(char *buf, size_t size)
 {
-    char tmp[MAX_NAME];
-    for (size_t i = 0; i < count; ++i) {
-        if (!(chain[i].flags & FL_EXE)) continue;
-        base_name(chain[i].exe, tmp, sizeof(tmp));
-        if (find_match(tmp, shells, ARRLEN(shells))) {
-            str_cpy(buf, tmp, size);
+    FILE *f = fopen("/etc/os-release", "r");
+    if (!f) {
+        str_cpy(buf, "Linux", size);
+        return;
+    }
+
+    char line[MAX_LINE], name[MAX_LINE] = "";
+    buf[0] = '\0';
+
+    while (fgets(line, sizeof(line), f)) {
+        if (parse_os_value("PRETTY_NAME=", line, buf, size) == 0) break;
+        if (!*name) parse_os_value("NAME=", line, name, sizeof(name));
+    }
+
+    fclose(f);
+
+    if (!*buf)
+        str_cpy(buf, *name ? name : "Linux", size);
+}
+
+static void
+fetch_kernel(char *buf, size_t size)
+{
+    struct utsname un;
+    if (uname(&un) == 0)
+        str_cpy(buf, un.release, size);
+    else
+        str_cpy(buf, "unknown", size);
+}
+
+static void
+fetch_shell(const proc_t *chain, size_t count, char *buf, size_t size)
+{
+    char name[MAX_NAME];
+
+    for (size_t i = 0; i < count; i++) {
+        if (!chain[i].exe[0]) continue;
+        base_name(chain[i].exe, name, sizeof(name));
+        if (find_match(name, shells, ARRLEN(shells))) {
+            str_cpy(buf, name, size);
             return;
         }
     }
+
     char *env = getenv("SHELL");
     if (env && *env) {
         base_name(env, buf, size);
         return;
     }
+
     str_cpy(buf, "unknown", size);
 }
 
 static void
-fetch_term(proc_t *chain, size_t count, char *buf, size_t size)
+fetch_term(const proc_t *chain, size_t count, char *buf, size_t size)
 {
     char *env = getenv("TERM_PROGRAM");
     if (env && *env) {
@@ -354,30 +338,51 @@ fetch_term(proc_t *chain, size_t count, char *buf, size_t size)
         return;
     }
 
-    char tmp[MAX_NAME];
-    for (size_t i = 1; i < count; ++i) {
-        if (!(chain[i].flags & FL_EXE)) continue;
-        base_name(chain[i].exe, tmp, sizeof(tmp));
-        if (find_match(tmp, shells, ARRLEN(shells))) continue;
+    char name[MAX_NAME];
+    for (size_t i = 1; i < count; i++) {
+        if (!chain[i].exe[0]) continue;
+        base_name(chain[i].exe, name, sizeof(name));
+        if (find_match(name, shells, ARRLEN(shells))) continue;
 
-        const char *match = find_match(tmp, terms, ARRLEN(terms));
-        if (match) {
-            str_cpy(buf, match, size);
-            return;
-        }
-        if (tmp[0]) {
-            str_cpy(buf, tmp, size);
-            return;
-        }
-    }
-
-    env = getenv("TERM");
-    if (env && *env) {
-        str_cpy(buf, env, size);
+        const char *match = find_match(name, terms, ARRLEN(terms));
+        str_cpy(buf, match ? match : name, size);
         return;
     }
 
-    str_cpy(buf, "unknown", size);
+    env = getenv("TERM");
+    str_cpy(buf, (env && *env) ? env : "unknown", size);
+}
+
+static int
+detect_console(char *term, size_t term_size, char *wm, size_t wm_size)
+{
+    char path[MAX_PATH];
+    if (read_link("/proc/self/fd/0", path, sizeof(path)) != 0) return 0;
+
+    if (strncmp(path, "/dev/tty", 8) != 0 ||
+        path[8] < '0' || path[8] > '9')
+        return 0;
+
+    base_name(path, term, term_size);
+    str_cpy(wm, "none", wm_size);
+    return 1;
+}
+
+static int
+detect_container(void)
+{
+    char *env = getenv("CONTAINER_ID");
+    if (env && *env) return 1;
+    if (access("/.dockerenv", F_OK) == 0) return 1;
+
+    struct stat st;
+    if (stat("/run/.containerenv", &st) == 0) return 1;
+
+    char buf[512];
+    if (read_first_line("/proc/1/cgroup", buf, sizeof(buf)) != 0) return 0;
+
+    return strstr(buf, "docker") || strstr(buf, "lxc") ||
+           strstr(buf, "containerd") || strstr(buf, "podman");
 }
 
 static int
@@ -391,82 +396,21 @@ detect_ssh(void)
 static int
 detect_wsl(void)
 {
-    if (wsl_checked) return wsl_result;
-    wsl_checked = 1;
-    wsl_result = 0;
-
-    if (getenv("WSLENV")) {
-        wsl_result = 1;
-        return 1;
-    }
-
-    struct stat st;
-    if (stat("/mnt/wsl", &st) == 0 ||
-        access("/proc/sys/fs/binfmt_misc/WSLInterop", F_OK) == 0) {
-        wsl_result = 1;
-        return 1;
-    }
-
     char buf[512];
-    int fd = open("/proc/sys/kernel/osrelease", O_RDONLY);
-    if (fd >= 0) {
-        ssize_t r = read(fd, buf, sizeof(buf) - 1);
-        close(fd);
-        if (r > 0) {
-            buf[r] = '\0';
-            if (strstr(buf, "WSL") || strstr(buf, "microsoft")) {
-                wsl_result = 1;
-                return 1;
-            }
-        }
-    }
 
-    fd = open("/proc/version", O_RDONLY);
-    if (fd >= 0) {
-        ssize_t r = read(fd, buf, sizeof(buf) - 1);
-        close(fd);
-        if (r > 0) {
-            buf[r] = '\0';
-            if (strstr(buf, "Microsoft") || strstr(buf, "WSL"))
-                wsl_result = 1;
-        }
-    }
-    return wsl_result;
-}
+    if (getenv("WSLENV")) return 1;
+    if (access("/mnt/wsl", F_OK) == 0) return 1;
+    if (access("/proc/sys/fs/binfmt_misc/WSLInterop", F_OK) == 0) return 1;
 
-static int
-detect_container(void)
-{
-    char *env = getenv("CONTAINER_ID");
-    if (env && *env) return 1;
+    if (read_first_line("/proc/sys/kernel/osrelease", buf, sizeof(buf)) == 0 &&
+        (strstr(buf, "WSL") || strstr(buf, "microsoft")))
+        return 1;
 
-    struct stat st;
-    if (access("/.dockerenv", F_OK) == 0) return 1;
-    if (stat("/run/.containerenv", &st) == 0) return 1;
+    if (read_first_line("/proc/version", buf, sizeof(buf)) == 0 &&
+        (strstr(buf, "WSL") || strstr(buf, "Microsoft")))
+        return 1;
 
-    char buf[512];
-    int fd = open("/proc/1/cgroup", O_RDONLY);
-    if (fd >= 0) {
-        ssize_t r = read(fd, buf, sizeof(buf) - 1);
-        close(fd);
-        if (r > 0) {
-            buf[r] = '\0';
-            if (strstr(buf, "docker") || strstr(buf, "lxc") ||
-                strstr(buf, "containerd") || strstr(buf, "podman"))
-                return 1;
-        }
-    }
     return 0;
-}
-
-static void
-fetch_wsl_wm(char *buf, size_t size)
-{
-    char *env = getenv("WAYLAND_DISPLAY");
-    if (env && *env) { str_cpy(buf, "WSLg", size); return; }
-    env = getenv("DISPLAY");
-    if (env && *env) { str_cpy(buf, "WSLg", size); return; }
-    str_cpy(buf, "unknown", size);
 }
 
 static void
@@ -478,155 +422,97 @@ fetch_wsl_term(char *buf, size_t size)
     }
 
     char *env = getenv("TERM");
-    if (env && *env) {
-        str_cpy(buf, env, size);
-        return;
-    }
-
-    buf[0] = '\0';
+    str_cpy(buf, (env && *env) ? env : "", size);
 }
 
-static int
-get_comm(pid_t pid, char *buf, size_t size)
+static void
+fetch_wsl_wm(char *buf, size_t size)
 {
-    char path[64];
-    make_path(pid, "comm", path, sizeof(path));
-    if (!path[0]) return -1;
-
-    int fd = open(path, O_RDONLY);
-    if (fd < 0) return -1;
-
-    ssize_t r = read(fd, buf, size - 1);
-    close(fd);
-
-    if (r <= 0) return -1;
-    buf[r] = '\0';
-
-    size_t len = 0;
-    while (buf[len]) len++;
-    if (len > 0 && buf[len - 1] == '\n') buf[len - 1] = '\0';
-
-    return 0;
+    char *wayland = getenv("WAYLAND_DISPLAY");
+    char *display = getenv("DISPLAY");
+    str_cpy(buf, ((wayland && *wayland) || (display && *display)) ? "WSLg" : "unknown", size);
 }
 
 static void
 fetch_wm(char *buf, size_t size)
 {
-    if (wm_cached) {
-        str_cpy(buf, wm_buf, size);
+    DIR *dir = opendir("/proc");
+    if (!dir) {
+        str_cpy(buf, "unknown", size);
         return;
     }
 
-    DIR *dir = opendir("/proc");
-    if (!dir) goto fail;
-
     struct dirent *entry;
-    char comm[MAX_NAME];
+    char path[64], comm[MAX_NAME];
 
     while ((entry = readdir(dir))) {
         if (entry->d_name[0] < '0' || entry->d_name[0] > '9') continue;
-        pid_t pid = (pid_t)fast_atoi(entry->d_name);
-        if (pid < MIN_WM_PID || pid > MAX_WM_PID) continue;
-        if (get_comm(pid, comm, sizeof(comm)) != 0) continue;
-        if (!*comm) continue;
+
+        proc_path((pid_t)fast_atoul(entry->d_name), "comm", path, sizeof(path));
+        if (read_first_line(path, comm, sizeof(comm)) != 0) continue;
+
         const char *match = find_match(comm, wms, ARRLEN(wms));
         if (match) {
             str_cpy(buf, match, size);
-            str_cpy(wm_buf, buf, sizeof(wm_buf));
-            wm_cached = IS_CACHED;
             closedir(dir);
             return;
         }
     }
+
     closedir(dir);
-
-fail:
     str_cpy(buf, "unknown", size);
-    str_cpy(wm_buf, "unknown", sizeof(wm_buf));
-    wm_cached = IS_CACHED;
-}
-
-static int
-parse_os_field(const char *key, size_t klen, char *line, char *out, size_t size)
-{
-    if (strncmp(line, key, klen)) return -1;
-
-    char q = '"';
-    char *start = strchr(line, q);
-    if (!start) { q = '\''; start = strchr(line, q); }
-    char *end = start ? strrchr(line, q) : NULL;
-
-    if (start && end && start < end) {
-        size_t vlen = strnlen(start + 1, size);
-        if (vlen == 0) return -1;
-        *end = '\0';
-        str_cpy(out, start + 1, MIN(vlen + 1, size));
-        return 0;
-    }
-
-    char *ptr = line + klen;
-    size_t len = strnlen(ptr, MAX_LINE - klen);
-    if (len > 0 && ptr[len - 1] == '\n') ptr[len - 1] = '\0';
-    while (*ptr == ' ' || *ptr == '\t') ptr++;
-    if (!*ptr) return -1;
-    str_cpy(out, ptr, size);
-    return 0;
 }
 
 static void
-fetch_os(char *buf, size_t size)
+read_base_info(info_t *info)
 {
-    if (os_cached) {
-        str_cpy(buf, os_buf, size);
+    fetch_user(info->user, sizeof(info->user));
+    fetch_host(info->host, sizeof(info->host));
+    fetch_os(info->os, sizeof(info->os));
+    fetch_kernel(info->kernel, sizeof(info->kernel));
+}
+
+static void
+detect_session(info_t *info, const proc_t *chain, size_t count)
+{
+    fetch_shell(chain, count, info->shell, sizeof(info->shell));
+
+    if (detect_console(info->term, sizeof(info->term), info->wm, sizeof(info->wm)))
+        return;
+
+    if (detect_container()) {
+        str_cpy(info->term, "container", sizeof(info->term));
+        str_cpy(info->wm, "none", sizeof(info->wm));
         return;
     }
 
-    FILE *f = fopen("/etc/os-release", "r");
-    if (!f) {
-        str_cpy(buf, "Linux", size);
-        goto done;
+    if (detect_ssh()) {
+        str_cpy(info->term, "ssh", sizeof(info->term));
+        str_cpy(info->wm, "none", sizeof(info->wm));
+        return;
     }
 
-    struct stat st;
-    if (fstat(fileno(f), &st) == 0 && st.st_size == 0) {
-        str_cpy(buf, "Linux", size);
-        fclose(f);
-        goto done;
+    if (detect_wsl()) {
+        fetch_wsl_term(info->term, sizeof(info->term));
+        if (!info->term[0]) fetch_term(chain, count, info->term, sizeof(info->term));
+        fetch_wsl_wm(info->wm, sizeof(info->wm));
+        if (str_eq(info->wm, "unknown")) fetch_wm(info->wm, sizeof(info->wm));
+        return;
     }
 
-    char line[MAX_LINE];
-    buf[0] = '\0';
-    int read_any = 0;
-
-    while (fgets(line, sizeof(line), f)) {
-        read_any = 1;
-        if (!parse_os_field("PRETTY_NAME=", 12, line, buf, size)) break;
-        if (!*buf) parse_os_field("NAME=", 5, line, buf, size);
-    }
-
-    if (!read_any || !*buf) str_cpy(buf, "Linux", size);
-    fclose(f);
-
-done:
-    str_cpy(os_buf, buf, sizeof(os_buf));
-    os_cached = IS_CACHED;
+    fetch_term(chain, count, info->term, sizeof(info->term));
+    fetch_wm(info->wm, sizeof(info->wm));
 }
 
-static int
-detect_console_tty(char *buf, size_t size, char *wm, size_t wm_size)
+static void
+kernel_short(char *dst, size_t size, const char *src)
 {
-    ssize_t len = readlink("/proc/self/fd/0", buf, size - 1);
-    if (len <= 0) return 0;
-    buf[len] = '\0';
-
-    if (strncmp(buf, "/dev/tty", 8) == 0 && buf[8] >= '0' && buf[8] <= '9') {
-        char termname[MAX_NAME];
-        base_name(buf, termname, sizeof(termname));
-        str_cpy(buf, termname, size);
-        str_cpy(wm, "none", wm_size);
-        return 1;
+    size_t i = 0;
+    while (i + 1 < size && src[i] && src[i] != ' ') {
+        dst[i] = src[i];
+        i++;
     }
-    return 0;
+    dst[i] = '\0';
 }
 
 static void
@@ -637,59 +523,48 @@ print_sep(size_t len)
 }
 
 static void
-print_version(void)
-{
-    printf("zeptofetch %s\n", VERSION);
-    printf("Copyright (C) %s Gurov\n", COPYRIGHT);
-    printf("Licensed under GPL-3.0\n\n");
-    printf("BUILD: %s %s UTC\n", __DATE__, __TIME__);
-    printf("CONFIG: CACHE=%d CHAIN=%d PID=%d\n",
-           MAX_CACHE, MAX_CHAIN, MAX_PID);
-}
-
-static void
-sanitize(char *dst, size_t size, const char *src)
-{
-    if (!dst || !src || !size) return;
-    size_t i = 0;
-    while (i < size - 1 && src[i] && src[i] != ' ') {
-        dst[i] = src[i];
-        i++;
-    }
-    dst[i] = '\0';
-}
-
-static void
-display(const char *user, const char *host, const char *os, const char *kern,
-        const char *shell, const char *wm, const char *term, int color)
+display(const info_t *info, int color)
 {
     const char *c1 = color ? C1 : "";
     const char *c2 = color ? C2 : "";
     const char *c3 = color ? C3 : "";
     const char *cr = color ? CR : "";
 
-    char krel[64], temp[256];
-    sanitize(krel, sizeof(krel), kern);
+    char krel[MAX_NAME], userhost[MAX_NAME * 2 + 1];
+    kernel_short(krel, sizeof(krel), info->kernel);
 
-    int n = snprintf(temp, sizeof(temp), "%s@%s", user, host);
-    size_t len = (n > 0 && (size_t)n < sizeof(temp)) ? (size_t)n : 0;
+    int n = snprintf(userhost, sizeof(userhost), "%s@%s", info->user, info->host);
+    size_t sep = (n > 0 && (size_t)n < sizeof(userhost)) ? (size_t)n : 0;
 
-    printf("%s    ___ %s     %s%s@%s%s\n", c1, cr, c1, user, host, cr);
+    printf("%s    ___ %s     %s%s@%s%s\n", c1, cr, c1, info->user, info->host, cr);
     printf("%s   (%s.· %s|%s     ", c1, c2, c1, cr);
-    print_sep(len);
-    printf("%s   (%s<>%s %s|%s     %sOS:%s %s\n", c1, c3, cr, c1, cr, c3, cr, os);
+    print_sep(sep);
+    printf("%s   (%s<>%s %s|%s     %sOS:%s %s\n", c1, c3, cr, c1, cr, c3, cr, info->os);
     printf("%s  / %s__  %s\\%s    %sKernel:%s %s\n", c1, c2, c1, cr, c3, cr, krel);
-    printf("%s ( %s/  \\ %s/|%s   %sShell:%s %s\n", c1, c2, c1, cr, c3, cr, shell);
-    printf("%s_%s/\\ %s__)%s/%s_%s)%s   %sWM:%s %s\n", c3, c1, c2, c1, c3, c1, cr, c3, cr, wm);
-    printf("%s%s\\/%s-____%s\\/%s    %sTerminal:%s %s\n\n", c1, c3, c1, c3, cr, c3, cr, term);
+    printf("%s ( %s/  \\ %s/|%s   %sShell:%s %s\n", c1, c2, c1, cr, c3, cr, info->shell);
+    printf("%s_%s/\\ %s__)%s/%s_%s)%s   %sWM:%s %s\n", c3, c1, c2, c1, c3, c1, cr, c3, cr, info->wm);
+    printf("%s%s\\/%s-____%s\\/%s    %sTerminal:%s %s\n\n", c1, c3, c1, c3, cr, c3, cr, info->term);
+}
+
+static void
+print_version(void)
+{
+    printf("zeptofetch %s\n", VERSION);
+    printf("Copyright (C) %s Gurov\n", COPYRIGHT);
+    printf("Licensed under GPL-3.0\n\n");
+    printf("BUILD: %s %s UTC\n", __DATE__, __TIME__);
+    printf("CONFIG: CHAIN=%d PID=%d\n", MAX_CHAIN, MAX_PID);
 }
 
 static int
 set_limits(void)
 {
     struct rlimit rlim;
+
+#ifndef __SANITIZE_ADDRESS__
     rlim.rlim_cur = rlim.rlim_max = 50 * 1024 * 1024;
     if (setrlimit(RLIMIT_AS, &rlim)) return -1;
+#endif
 
     rlim.rlim_cur = rlim.rlim_max = 5;
     if (setrlimit(RLIMIT_CPU, &rlim)) return -1;
@@ -701,84 +576,42 @@ set_limits(void)
 }
 
 static int
-can_read_proc(void)
+harden(void)
 {
-    return access("/proc/self/stat", R_OK) == 0;
-}
+    (void)prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+    (void)prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
 
-static void
-cleanup(void)
-{
-    if (cache) {
-        secure_zero(cache, cache_len * sizeof(proc_t));
-        munmap(cache, MAX_CACHE * sizeof(proc_t));
-    }
+    if (getegid() != getgid() && setgid(getgid())) return -1;
+    if (geteuid() != getuid() && setuid(getuid())) return -1;
+
+    if (set_limits())
+        fprintf(stderr, "Warn: limits failed\n");
+
+    return 0;
 }
 
 int
 main(int argc, char **argv)
 {
-    prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
-    prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
+    if (harden()) return 1;
 
-    if (geteuid() != getuid() || getegid() != getgid())
-        if (setuid(getuid()) || setgid(getgid())) return 1;
-
-    if (set_limits()) fprintf(stderr, "Warn: limits failed\n");
-
-    if (!can_read_proc()) {
+    if (access("/proc/self/stat", R_OK) != 0) {
         fprintf(stderr, "Error: cannot read /proc (hidepid enabled?)\n");
         return 1;
     }
-
-    cache = mmap(NULL, MAX_CACHE * sizeof(proc_t),
-                 PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (cache == MAP_FAILED) return 1;
-
-    atexit(cleanup);
 
     if (argc > 1 && (str_eq(argv[1], "--version") || str_eq(argv[1], "-v"))) {
         print_version();
         return 0;
     }
 
-    int use_color = isatty(STDOUT_FILENO);
-
-    char user[MAX_NAME], host[MAX_NAME];
-    char shell[MAX_NAME], wm[MAX_NAME], term[MAX_NAME];
-    char os[MAX_LINE];
-    struct utsname un;
-
-    if (uname(&un) != 0)
-        str_cpy(un.release, "unknown", sizeof(un.release));
-
-    fetch_user(user, sizeof(user));
-    fetch_host(host, sizeof(host));
-
     proc_t chain[MAX_CHAIN];
-    cache_len = 0;
-    size_t count = build_chain(getpid(), chain, MAX_CHAIN);
+    info_t info;
 
-    fetch_shell(chain, count, shell, sizeof(shell));
-    fetch_os(os, sizeof(os));
+    size_t count = build_chain(chain, ARRLEN(chain));
+    read_base_info(&info);
+    detect_session(&info, chain, count);
+    display(&info, isatty(STDOUT_FILENO));
 
-    if (detect_console_tty(term, sizeof(term), wm, sizeof(wm))) {
-    } else if (detect_container()) {
-        str_cpy(wm, "none", sizeof(wm));
-        str_cpy(term, "container", sizeof(term));
-    } else if (detect_ssh()) {
-        str_cpy(term, "ssh", sizeof(term));
-        str_cpy(wm, "none", sizeof(wm));
-    } else if (detect_wsl()) {
-        fetch_wsl_term(term, sizeof(term));
-        if (!*term) fetch_term(chain, count, term, sizeof(term));
-        fetch_wsl_wm(wm, sizeof(wm));
-        if (str_eq(wm, "unknown")) fetch_wm(wm, sizeof(wm));
-    } else {
-        fetch_term(chain, count, term, sizeof(term));
-        fetch_wm(wm, sizeof(wm));
-    }
-
-    display(user, host, os, un.release, shell, wm, term, use_color);
     return 0;
 }

@@ -2,7 +2,7 @@
 
 # zeptofetch
 
-![zeptofetch v1.18](https://i.e-z.host/a4t4aoly.webp)
+![zeptofetch v2.0](https://i.e-z.host/a4t4aoly.webp)
 
 A system information tool for Linux. Written in C, no dependencies, runs in under 1ms.
 
@@ -59,19 +59,25 @@ Edit `config.h` before building:
 make clean && make && sudo make install
 ```
 
+## Benchmarking
+```bash
+make clean && make
+hyperfine ./zeptofetch
+```
+
 ## How it works
 
 **Shell:** walks `/proc/[pid]/exe` up the process tree. Falls back to `$SHELL` if nothing matches.
 
 **Terminal:** same tree walk, skipping known shells. Checks `TERM_PROGRAM` and `TERMINAL` first.
 
-**WM:** single-pass scan of `/proc` across PIDs 300–100000, matched against a known list. Result is cached.
+**WM:** single-pass scan of numeric `/proc` entries, matched against a known list.
 
 **OS:** reads `PRETTY_NAME` from `/etc/os-release`, falls back to `NAME`, then `"Linux"`.
 
 **WSL2:** checked via `WSLENV`, `/mnt/wsl`, `binfmt_misc`, and kernel version strings.
 
-**Privileges:** `PR_SET_NO_NEW_PRIVS` and `PR_SET_DUMPABLE` set at startup. `RLIMIT_AS`, `RLIMIT_CPU`, and `RLIMIT_NOFILE` enforced. Process cache is `mmap`-allocated and zeroed on exit.
+**Privileges:** `PR_SET_NO_NEW_PRIVS` and `PR_SET_DUMPABLE` set at startup. `RLIMIT_AS`, `RLIMIT_CPU`, and `RLIMIT_NOFILE` enforced.
 
 > For accuracy/speed tradeoffs, see [zeptofetch-u](https://github.com/Gur0v/zeptofetch-u), a more stripped-down variant that runs in ~200 µs.
 
