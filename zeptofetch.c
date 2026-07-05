@@ -44,11 +44,11 @@ typedef struct {
 
 static const char *shells[] = {
     "bash", "zsh", "fish", "dash",
-    "sh", "ksh", "tcsh", "csh",
-    "elvish", "nushell", "xonsh", "ion",
-    "oil", "murex", "powershell", "pwsh",
+    "sh", "ash", "ksh", "tcsh", "csh",
+    "elvish", "nushell", "nu", "xonsh", "ion",
+    "oil", "oil.ovm", "murex", "powershell", "pwsh",
     "rc", "es", "yash", "mksh",
-    "oksh", "pdksh",
+    "oksh", "pdksh", "busybox",
 };
 
 static const char *terms[] = {
@@ -64,6 +64,12 @@ static const char *terms[] = {
     "kterm", "qterminal", "lilyterm", "evilvte",
     "mrxvt", "fbterm", "nxterm", "pterm",
     "termine", "wterm", "xvt", "yaft",
+};
+
+static const char *wrappers[] = {
+    "bwrap", "sudo", "su", "doas", "strace",
+    "ltrace", "gdb", "lldb", "perf", "time",
+    "valgrind", "proot", "script", "run-parts",
 };
 
 static const char *wms[] = {
@@ -226,6 +232,15 @@ base_name(const char *path, char *out, size_t size)
     str_cpy(out, base ? base + 1 : path, size);
 }
 
+static const char *
+shell_alias(const char *name)
+{
+    if (strcmp(name, "nu") == 0) return "nushell";
+    if (strcmp(name, "oil.ovm") == 0) return "oil";
+    if (strcmp(name, "busybox") == 0) return "ash";
+    return name;
+}
+
 static void
 fetch_user(char *buf, size_t size)
 {
@@ -311,7 +326,7 @@ fetch_shell(const proc_t *chain, size_t count, char *buf, size_t size)
         if (!chain[i].exe[0]) continue;
         base_name(chain[i].exe, name, sizeof(name));
         if (find_match(name, shells, ARRLEN(shells))) {
-            str_cpy(buf, name, size);
+            str_cpy(buf, shell_alias(name), size);
             return;
         }
     }
@@ -319,6 +334,7 @@ fetch_shell(const proc_t *chain, size_t count, char *buf, size_t size)
     const char *env = getenv("SHELL");
     if (env && *env) {
         base_name(env, buf, size);
+        str_cpy(buf, shell_alias(buf), size);
         return;
     }
 
@@ -336,6 +352,14 @@ fetch_term(const proc_t *chain, size_t count, char *buf, size_t size)
     if (getenv("ALACRITTY_SOCKET") || getenv("ALACRITTY_LOG") ||
         getenv("ALACRITTY_WINDOW_ID")) {
         str_cpy(buf, "alacritty", size);
+        return;
+    }
+    if (getenv("WEZTERM_EXECUTABLE") || getenv("WEZTERM_PANE")) {
+        str_cpy(buf, "wezterm", size);
+        return;
+    }
+    if (getenv("TERMUX_VERSION") || getenv("TERMUX_MAIN_PACKAGE_FORMAT")) {
+        str_cpy(buf, "termux", size);
         return;
     }
     if (getenv("KONSOLE_VERSION")) {
@@ -368,6 +392,7 @@ fetch_term(const proc_t *chain, size_t count, char *buf, size_t size)
         if (!chain[i].exe[0]) continue;
         base_name(chain[i].exe, name, sizeof(name));
         if (find_match(name, shells, ARRLEN(shells))) continue;
+        if (find_match(name, wrappers, ARRLEN(wrappers))) continue;
 
         const char *match = find_match(name, terms, ARRLEN(terms));
         str_cpy(buf, match ? match : name, size);
