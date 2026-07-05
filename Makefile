@@ -20,7 +20,7 @@ export TZ=UTC
 
 all: $(TARGET)
 
-$(TARGET): zeptofetch.c config.h
+$(TARGET): zeptofetch.c
 	$(CC) $(STD) $(CFLAGS) $(WARN) $(SEC) -ffunction-sections -fdata-sections $(LDFLAGS) -o $@ zeptofetch.c
 	strip --strip-all --remove-section=.note --remove-section=.comment $@
 

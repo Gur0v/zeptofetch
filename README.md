@@ -53,18 +53,6 @@ paru -S zeptofetch      # stable
 paru -S zeptofetch-git  # git HEAD
 ```
 
-## Configuration
-Edit `config.h` before building:
-```c
-#define CR "\033[0m"         // reset
-#define C1 "\033[1;34m"      // primary   (bold blue)
-#define C2 "\033[1;37m"      // secondary (bold white)
-#define C3 "\033[1;38;5;208m" // accent    (bold orange)
-```
-```bash
-make clean && make && sudo make install
-```
-
 ## How it works
 
 **Shell:** walks `/proc/[pid]/exe` up the process tree. Falls back to `$SHELL` if nothing matches.

@@ -11,10 +11,13 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
-#include "config.h"
-
 #define VERSION     "v2.0"
 #define COPYRIGHT   "2024-2026"
+
+#define CR          "\033[0m"
+#define C1          "\033[1;34m"
+#define C2          "\033[1;37m"
+#define C3          "\033[1;38;5;208m"
 
 #define MAX_PATH    4096
 #define MAX_CHAIN   64
@@ -23,17 +26,11 @@
 #define MAX_PID     4194304
 
 #define ARRLEN(a)   (sizeof(a) / sizeof((a)[0]))
-#define M(s)        {s, sizeof(s) - 1}
 
 typedef struct {
     pid_t ppid;
     char exe[MAX_PATH];
 } proc_t;
-
-typedef struct {
-    const char *id;
-    size_t len;
-} match_t;
 
 typedef struct {
     char user[MAX_NAME];
@@ -45,49 +42,49 @@ typedef struct {
     char term[MAX_NAME];
 } info_t;
 
-static const match_t shells[] = {
-    M("bash"), M("zsh"), M("fish"), M("dash"),
-    M("sh"), M("ksh"), M("tcsh"), M("csh"),
-    M("elvish"), M("nushell"), M("xonsh"), M("ion"),
-    M("oil"), M("murex"), M("powershell"), M("pwsh"),
-    M("rc"), M("es"), M("yash"), M("mksh"),
-    M("oksh"), M("pdksh"),
+static const char *shells[] = {
+    "bash", "zsh", "fish", "dash",
+    "sh", "ksh", "tcsh", "csh",
+    "elvish", "nushell", "xonsh", "ion",
+    "oil", "murex", "powershell", "pwsh",
+    "rc", "es", "yash", "mksh",
+    "oksh", "pdksh",
 };
 
-static const match_t terms[] = {
-    M("alacritty"), M("kitty"), M("wezterm"), M("gnome-terminal"),
-    M("konsole"), M("xfce4-terminal"), M("foot"), M("ghostty"),
-    M("terminator"), M("xterm"), M("urxvt"), M("st"),
-    M("tilix"), M("guake"), M("yakuake"), M("terminology"),
-    M("mate-terminal"), M("lxterminal"), M("sakura"), M("tilda"),
-    M("termite"), M("roxterm"), M("hyper"), M("tabby"),
-    M("rio"), M("contour"), M("ptyxis"), M("cosmic-term"),
-    M("warp"), M("wave"), M("extraterm"), M("zutty"),
-    M("cool-retro-term"), M("mlterm"), M("aterm"), M("eterm"),
-    M("kterm"), M("qterminal"), M("lilyterm"), M("evilvte"),
-    M("mrxvt"), M("fbterm"), M("nxterm"), M("pterm"),
-    M("termine"), M("wterm"), M("xvt"), M("yaft"),
+static const char *terms[] = {
+    "alacritty", "kitty", "wezterm", "gnome-terminal",
+    "konsole", "xfce4-terminal", "foot", "ghostty",
+    "terminator", "xterm", "urxvt", "st",
+    "tilix", "guake", "yakuake", "terminology",
+    "mate-terminal", "lxterminal", "sakura", "tilda",
+    "termite", "roxterm", "hyper", "tabby",
+    "rio", "contour", "ptyxis", "cosmic-term",
+    "warp", "wave", "extraterm", "zutty",
+    "cool-retro-term", "mlterm", "aterm", "eterm",
+    "kterm", "qterminal", "lilyterm", "evilvte",
+    "mrxvt", "fbterm", "nxterm", "pterm",
+    "termine", "wterm", "xvt", "yaft",
 };
 
-static const match_t wms[] = {
-    M("Hyprland"), M("sway"), M("kwin"), M("mutter"),
-    M("openbox"), M("i3"), M("bspwm"), M("awesome"),
-    M("dwm"), M("xmonad"), M("muffin"), M("marco"),
-    M("wayfire"), M("river"), M("labwc"), M("niri"),
-    M("xfwm4"), M("fluxbox"), M("icewm"), M("jwm"),
-    M("gnome-shell"), M("cinnamon"), M("mate-session"),
-    M("enlightenment"), M("qtile"), M("leftwm"),
-    M("herbstluftwm"), M("spectrwm"), M("ratpoison"),
-    M("stumpwm"), M("sawfish"), M("fvwm"), M("fvwm3"),
-    M("fvwm-crystal"), M("pekwm"), M("windowmaker"),
-    M("afterstep"), M("blackbox"), M("wmaker"), M("cwm"),
-    M("2bwm"), M("berry"), M("cage"), M("catwm"),
-    M("compiz"), M("ctwm"), M("dminiwm"), M("echinus"),
-    M("evilwm"), M("frankenwm"), M("goomwwm"), M("ion"),
-    M("lfwm"), M("metacity"), M("notion"), M("olivetti"),
-    M("plwm"), M("snapwm"), M("tinywm"), M("trayer"),
-    M("twm"), M("vwm"), M("waimea"), M("wmii"),
-    M("wmx"), M("acme"), M("mango"),
+static const char *wms[] = {
+    "Hyprland", "sway", "kwin", "mutter",
+    "openbox", "i3", "bspwm", "awesome",
+    "dwm", "xmonad", "muffin", "marco",
+    "wayfire", "river", "labwc", "niri",
+    "xfwm4", "fluxbox", "icewm", "jwm",
+    "gnome-shell", "cinnamon", "mate-session",
+    "enlightenment", "qtile", "leftwm",
+    "herbstluftwm", "spectrwm", "ratpoison",
+    "stumpwm", "sawfish", "fvwm", "fvwm3",
+    "fvwm-crystal", "pekwm", "windowmaker",
+    "afterstep", "blackbox", "wmaker", "cwm",
+    "2bwm", "berry", "cage", "catwm",
+    "compiz", "ctwm", "dminiwm", "echinus",
+    "evilwm", "frankenwm", "goomwwm", "ion",
+    "lfwm", "metacity", "notion", "olivetti",
+    "plwm", "snapwm", "tinywm", "trayer",
+    "twm", "vwm", "waimea", "wmii",
+    "wmx", "acme", "mango",
 };
 
 static void
@@ -203,17 +200,20 @@ build_chain(proc_t *chain, size_t max)
 }
 
 static const char *
-find_match(const char *name, const match_t *list, size_t count)
+find_match(const char *name, const char **list, size_t count)
 {
     if (!name || !*name) return NULL;
 
     for (size_t i = 0; i < count; i++) {
-        if (name[0] != list[i].id[0]) continue;
-        if (strncmp(name, list[i].id, list[i].len) != 0) continue;
+        const char *id = list[i];
+        size_t len = strlen(id);
 
-        char sep = name[list[i].len];
+        if (name[0] != id[0]) continue;
+        if (strncmp(name, id, len) != 0) continue;
+
+        char sep = name[len];
         if (sep == '\0' || sep == '-' || sep == '.' || sep == '_')
-            return list[i].id;
+            return id;
     }
 
     return NULL;
@@ -437,8 +437,6 @@ fetch_wsl_wm(char *buf, size_t size)
 static int
 fetch_wm_env(char *buf, size_t size)
 {
-    const char *env;
-
     if (getenv("SWAYSOCK")) {
         str_cpy(buf, "sway", size);
         return 1;
@@ -446,30 +444,6 @@ fetch_wm_env(char *buf, size_t size)
     if (getenv("HYPRLAND_INSTANCE_SIGNATURE")) {
         str_cpy(buf, "Hyprland", size);
         return 1;
-    }
-
-    env = getenv("XDG_CURRENT_DESKTOP");
-    if (env && *env) {
-        if (strstr(env, "KDE")) { str_cpy(buf, "kwin", size); return 1; }
-        if (strstr(env, "GNOME")) { str_cpy(buf, "mutter", size); return 1; }
-        if (strstr(env, "XFCE")) { str_cpy(buf, "xfwm4", size); return 1; }
-        if (strstr(env, "MATE")) { str_cpy(buf, "marco", size); return 1; }
-        if (strstr(env, "Cinnamon")) { str_cpy(buf, "muffin", size); return 1; }
-
-        const char *match = find_match(env, wms, ARRLEN(wms));
-        if (match) {
-            str_cpy(buf, match, size);
-            return 1;
-        }
-    }
-
-    env = getenv("DESKTOP_SESSION");
-    if (env && *env) {
-        const char *match = find_match(env, wms, ARRLEN(wms));
-        if (match) {
-            str_cpy(buf, match, size);
-            return 1;
-        }
     }
 
     return 0;
@@ -540,13 +514,6 @@ detect_session(info_t *info, const proc_t *chain, size_t count)
 }
 
 static void
-print_sep(size_t len)
-{
-    while (len--) putchar('-');
-    putchar('\n');
-}
-
-static void
 display(const info_t *info, int color)
 {
     const char *c1 = color ? C1 : "";
@@ -559,7 +526,8 @@ display(const info_t *info, int color)
 
     printf("%s    ___ %s     %s%s@%s%s\n", c1, cr, c1, info->user, info->host, cr);
     printf("%s   (%s.· %s|%s     ", c1, c2, c1, cr);
-    print_sep(sep);
+    while (sep--) putchar('-');
+    putchar('\n');
     printf("%s   (%s<>%s %s|%s     %sOS:%s %s\n", c1, c3, cr, c1, cr, c3, cr, info->os);
     printf("%s  / %s__  %s\\%s    %sKernel:%s %.*s\n", c1, c2, c1, cr, c3, cr, (int)klen, info->kernel);
     printf("%s ( %s/  \\ %s/|%s   %sShell:%s %s\n", c1, c2, c1, cr, c3, cr, info->shell);
