@@ -13,7 +13,7 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine).
 
 | Tool | Mean | Binary |
 |---|---|---|
-| **zeptofetch** | **566.7 µs ± 40.6 µs** | 27 KB |
+| **zeptofetch** | **561.8 µs ± 45.7 µs** | 27 KB |
 | fastfetch | 6.7 ms ± 1.0 ms | ~200 KB |
 | neofetch | 405.1 ms ± 21.0 ms | ~50 KB |
 
@@ -59,7 +59,7 @@ paru -S zeptofetch-git  # git HEAD
 
 **Terminal:** same tree walk, skipping known shells. Checks `TERM_PROGRAM` and `TERMINAL` first.
 
-**WM:** single-pass scan of numeric `/proc` entries, matched against a known list.
+**WM:** checks compositor env hints, then scans numeric `/proc` entries against a known list.
 
 **OS:** reads `PRETTY_NAME` from `/etc/os-release`, falls back to `NAME`, then `"Linux"`.
 

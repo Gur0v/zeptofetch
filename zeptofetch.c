@@ -272,6 +272,7 @@ static void
 fetch_os(char *buf, size_t size)
 {
     FILE *f = fopen("/etc/os-release", "r");
+    if (!f) f = fopen("/usr/lib/os-release", "r");
     if (!f) {
         str_cpy(buf, "Linux", size);
         return;
@@ -328,6 +329,23 @@ static void
 fetch_term(const proc_t *chain, size_t count, char *buf, size_t size)
 {
     const char *env = getenv("TERM_PROGRAM");
+    if (getenv("KITTY_PID") || getenv("KITTY_INSTALLATION_DIR")) {
+        str_cpy(buf, "kitty", size);
+        return;
+    }
+    if (getenv("ALACRITTY_SOCKET") || getenv("ALACRITTY_LOG") ||
+        getenv("ALACRITTY_WINDOW_ID")) {
+        str_cpy(buf, "alacritty", size);
+        return;
+    }
+    if (getenv("KONSOLE_VERSION")) {
+        str_cpy(buf, "konsole", size);
+        return;
+    }
+    if (getenv("GNOME_TERMINAL_SCREEN") || getenv("GNOME_TERMINAL_SERVICE")) {
+        str_cpy(buf, "gnome-terminal", size);
+        return;
+    }
     if (env && *env) {
         str_cpy(buf, env, size);
         return;
@@ -336,6 +354,12 @@ fetch_term(const proc_t *chain, size_t count, char *buf, size_t size)
     env = getenv("TERMINAL");
     if (env && *env) {
         base_name(env, buf, size);
+        return;
+    }
+
+    env = getenv("LC_TERMINAL");
+    if (env && *env) {
+        str_cpy(buf, env, size);
         return;
     }
 
