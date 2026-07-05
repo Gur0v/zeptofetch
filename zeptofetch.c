@@ -156,7 +156,7 @@ read_first_line(const char *path, char *buf, size_t size)
 }
 
 static int
-read_proc(pid_t pid, proc_t *p)
+read_proc(pid_t pid, proc_t *p, int want_exe)
 {
     char path[64], buf[4096];
 
@@ -175,8 +175,10 @@ read_proc(pid_t pid, proc_t *p)
     p->ppid = (pid_t)fast_atoul(rparen + 4);
     if (!valid_pid(p->ppid)) p->ppid = -1;
 
-    proc_path(pid, "exe", path, sizeof(path));
-    (void)read_link(path, p->exe, sizeof(p->exe));
+    if (want_exe) {
+        proc_path(pid, "exe", path, sizeof(path));
+        (void)read_link(path, p->exe, sizeof(p->exe));
+    }
 
     return 0;
 }
@@ -188,7 +190,7 @@ build_chain(proc_t *chain, size_t max)
     pid_t pid = getpid();
 
     while (valid_pid(pid) && count < max) {
-        if (read_proc(pid, &chain[count]) != 0) break;
+        if (read_proc(pid, &chain[count], count > 0) != 0) break;
 
         pid_t next = chain[count].ppid;
         count++;
@@ -432,9 +434,52 @@ fetch_wsl_wm(char *buf, size_t size)
     str_cpy(buf, ((wayland && *wayland) || (display && *display)) ? "WSLg" : "unknown", size);
 }
 
+static int
+fetch_wm_env(char *buf, size_t size)
+{
+    const char *env;
+
+    if (getenv("SWAYSOCK")) {
+        str_cpy(buf, "sway", size);
+        return 1;
+    }
+    if (getenv("HYPRLAND_INSTANCE_SIGNATURE")) {
+        str_cpy(buf, "Hyprland", size);
+        return 1;
+    }
+
+    env = getenv("XDG_CURRENT_DESKTOP");
+    if (env && *env) {
+        if (strstr(env, "KDE")) { str_cpy(buf, "kwin", size); return 1; }
+        if (strstr(env, "GNOME")) { str_cpy(buf, "mutter", size); return 1; }
+        if (strstr(env, "XFCE")) { str_cpy(buf, "xfwm4", size); return 1; }
+        if (strstr(env, "MATE")) { str_cpy(buf, "marco", size); return 1; }
+        if (strstr(env, "Cinnamon")) { str_cpy(buf, "muffin", size); return 1; }
+
+        const char *match = find_match(env, wms, ARRLEN(wms));
+        if (match) {
+            str_cpy(buf, match, size);
+            return 1;
+        }
+    }
+
+    env = getenv("DESKTOP_SESSION");
+    if (env && *env) {
+        const char *match = find_match(env, wms, ARRLEN(wms));
+        if (match) {
+            str_cpy(buf, match, size);
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 static void
 fetch_wm(char *buf, size_t size)
 {
+    if (fetch_wm_env(buf, size)) return;
+
     DIR *dir = opendir("/proc");
     if (!dir) {
         str_cpy(buf, "unknown", size);
