@@ -23,9 +23,9 @@
 #define MAX_PID     4194304
 
 #define ARRLEN(a)   (sizeof(a) / sizeof((a)[0]))
+#define M(s)        {s, sizeof(s) - 1}
 
 typedef struct {
-    pid_t pid;
     pid_t ppid;
     char exe[MAX_PATH];
 } proc_t;
@@ -46,48 +46,48 @@ typedef struct {
 } info_t;
 
 static const match_t shells[] = {
-    {"bash", 4}, {"zsh", 3}, {"fish", 4}, {"dash", 4},
-    {"sh", 2}, {"ksh", 3}, {"tcsh", 4}, {"csh", 3},
-    {"elvish", 6}, {"nushell", 7}, {"xonsh", 5}, {"ion", 3},
-    {"oil", 3}, {"murex", 5}, {"powershell", 10}, {"pwsh", 4},
-    {"rc", 2}, {"es", 2}, {"yash", 4}, {"mksh", 4},
-    {"oksh", 4}, {"pdksh", 5},
+    M("bash"), M("zsh"), M("fish"), M("dash"),
+    M("sh"), M("ksh"), M("tcsh"), M("csh"),
+    M("elvish"), M("nushell"), M("xonsh"), M("ion"),
+    M("oil"), M("murex"), M("powershell"), M("pwsh"),
+    M("rc"), M("es"), M("yash"), M("mksh"),
+    M("oksh"), M("pdksh"),
 };
 
 static const match_t terms[] = {
-    {"alacritty", 9}, {"kitty", 5}, {"wezterm", 7}, {"gnome-terminal", 14},
-    {"konsole", 7}, {"xfce4-terminal", 14}, {"foot", 4}, {"ghostty", 7},
-    {"terminator", 10}, {"xterm", 5}, {"urxvt", 5}, {"st", 2},
-    {"tilix", 5}, {"guake", 5}, {"yakuake", 7}, {"terminology", 11},
-    {"mate-terminal", 13}, {"lxterminal", 10}, {"sakura", 6}, {"tilda", 5},
-    {"termite", 7}, {"roxterm", 7}, {"hyper", 5}, {"tabby", 5},
-    {"rio", 3}, {"contour", 7}, {"ptyxis", 6}, {"cosmic-term", 11},
-    {"warp", 4}, {"wave", 4}, {"extraterm", 9}, {"zutty", 5},
-    {"cool-retro-term", 15}, {"mlterm", 6}, {"aterm", 5}, {"eterm", 5},
-    {"kterm", 5}, {"qterminal", 9}, {"lilyterm", 8}, {"evilvte", 7},
-    {"mrxvt", 5}, {"fbterm", 6}, {"nxterm", 6}, {"pterm", 5},
-    {"termine", 7}, {"wterm", 5}, {"xvt", 3}, {"yaft", 4},
+    M("alacritty"), M("kitty"), M("wezterm"), M("gnome-terminal"),
+    M("konsole"), M("xfce4-terminal"), M("foot"), M("ghostty"),
+    M("terminator"), M("xterm"), M("urxvt"), M("st"),
+    M("tilix"), M("guake"), M("yakuake"), M("terminology"),
+    M("mate-terminal"), M("lxterminal"), M("sakura"), M("tilda"),
+    M("termite"), M("roxterm"), M("hyper"), M("tabby"),
+    M("rio"), M("contour"), M("ptyxis"), M("cosmic-term"),
+    M("warp"), M("wave"), M("extraterm"), M("zutty"),
+    M("cool-retro-term"), M("mlterm"), M("aterm"), M("eterm"),
+    M("kterm"), M("qterminal"), M("lilyterm"), M("evilvte"),
+    M("mrxvt"), M("fbterm"), M("nxterm"), M("pterm"),
+    M("termine"), M("wterm"), M("xvt"), M("yaft"),
 };
 
 static const match_t wms[] = {
-    {"Hyprland", 8}, {"sway", 4}, {"kwin", 4}, {"mutter", 6},
-    {"openbox", 7}, {"i3", 2}, {"bspwm", 5}, {"awesome", 7},
-    {"dwm", 3}, {"xmonad", 6}, {"muffin", 6}, {"marco", 5},
-    {"wayfire", 7}, {"river", 5}, {"labwc", 5}, {"niri", 4},
-    {"xfwm4", 5}, {"fluxbox", 7}, {"icewm", 5}, {"jwm", 3},
-    {"gnome-shell", 11}, {"cinnamon", 8}, {"mate-session", 12},
-    {"enlightenment", 13}, {"qtile", 5}, {"leftwm", 6},
-    {"herbstluftwm", 12}, {"spectrwm", 8}, {"ratpoison", 9},
-    {"stumpwm", 7}, {"sawfish", 7}, {"fvwm", 4}, {"fvwm3", 5},
-    {"fvwm-crystal", 12}, {"pekwm", 5}, {"windowmaker", 11},
-    {"afterstep", 9}, {"blackbox", 8}, {"wmaker", 6}, {"cwm", 3},
-    {"2bwm", 4}, {"berry", 5}, {"cage", 4}, {"catwm", 5},
-    {"compiz", 6}, {"ctwm", 4}, {"dminiwm", 7}, {"echinus", 7},
-    {"evilwm", 6}, {"frankenwm", 9}, {"goomwwm", 7}, {"ion", 3},
-    {"lfwm", 4}, {"metacity", 8}, {"notion", 6}, {"olivetti", 8},
-    {"plwm", 4}, {"snapwm", 6}, {"tinywm", 6}, {"trayer", 6},
-    {"twm", 3}, {"vwm", 3}, {"waimea", 6}, {"wmii", 4},
-    {"wmx", 3}, {"acme", 4}, {"mango", 5},
+    M("Hyprland"), M("sway"), M("kwin"), M("mutter"),
+    M("openbox"), M("i3"), M("bspwm"), M("awesome"),
+    M("dwm"), M("xmonad"), M("muffin"), M("marco"),
+    M("wayfire"), M("river"), M("labwc"), M("niri"),
+    M("xfwm4"), M("fluxbox"), M("icewm"), M("jwm"),
+    M("gnome-shell"), M("cinnamon"), M("mate-session"),
+    M("enlightenment"), M("qtile"), M("leftwm"),
+    M("herbstluftwm"), M("spectrwm"), M("ratpoison"),
+    M("stumpwm"), M("sawfish"), M("fvwm"), M("fvwm3"),
+    M("fvwm-crystal"), M("pekwm"), M("windowmaker"),
+    M("afterstep"), M("blackbox"), M("wmaker"), M("cwm"),
+    M("2bwm"), M("berry"), M("cage"), M("catwm"),
+    M("compiz"), M("ctwm"), M("dminiwm"), M("echinus"),
+    M("evilwm"), M("frankenwm"), M("goomwwm"), M("ion"),
+    M("lfwm"), M("metacity"), M("notion"), M("olivetti"),
+    M("plwm"), M("snapwm"), M("tinywm"), M("trayer"),
+    M("twm"), M("vwm"), M("waimea"), M("wmii"),
+    M("wmx"), M("acme"), M("mango"),
 };
 
 static void
@@ -102,12 +102,6 @@ str_cpy(char *dst, const char *src, size_t size)
         i++;
     }
     dst[i] = '\0';
-}
-
-static int
-str_eq(const char *a, const char *b)
-{
-    return a && b && strcmp(a, b) == 0;
 }
 
 static int
@@ -168,14 +162,13 @@ read_proc(pid_t pid, proc_t *p)
 
     if (!valid_pid(pid) || !p) return -1;
 
-    p->pid = pid;
     p->ppid = -1;
     p->exe[0] = '\0';
 
     proc_path(pid, "stat", path, sizeof(path));
     if (read_first_line(path, buf, sizeof(buf)) != 0) return -1;
 
-    char *rparen = strrchr(buf, ')');
+    const char *rparen = strrchr(buf, ')');
     if (!rparen || rparen[1] != ' ' || !rparen[2] || rparen[3] != ' ')
         return -1;
 
@@ -234,7 +227,7 @@ base_name(const char *path, char *out, size_t size)
 static void
 fetch_user(char *buf, size_t size)
 {
-    struct passwd *pw = getpwuid(getuid());
+    const struct passwd *pw = getpwuid(getuid());
     str_cpy(buf, (pw && pw->pw_name) ? pw->pw_name : "user", size);
 }
 
@@ -248,7 +241,7 @@ fetch_host(char *buf, size_t size)
 }
 
 static int
-parse_os_value(const char *key, char *line, char *out, size_t size)
+parse_os_value(const char *key, char *line, size_t size, char *out)
 {
     size_t klen = strlen(key);
     if (strncmp(line, key, klen) != 0) return -1;
@@ -280,8 +273,8 @@ fetch_os(char *buf, size_t size)
     buf[0] = '\0';
 
     while (fgets(line, sizeof(line), f)) {
-        if (parse_os_value("PRETTY_NAME=", line, buf, size) == 0) break;
-        if (!*name) parse_os_value("NAME=", line, name, sizeof(name));
+        if (parse_os_value("PRETTY_NAME=", line, size, buf) == 0) break;
+        if (!*name) parse_os_value("NAME=", line, sizeof(name), name);
     }
 
     fclose(f);
@@ -314,7 +307,7 @@ fetch_shell(const proc_t *chain, size_t count, char *buf, size_t size)
         }
     }
 
-    char *env = getenv("SHELL");
+    const char *env = getenv("SHELL");
     if (env && *env) {
         base_name(env, buf, size);
         return;
@@ -326,7 +319,7 @@ fetch_shell(const proc_t *chain, size_t count, char *buf, size_t size)
 static void
 fetch_term(const proc_t *chain, size_t count, char *buf, size_t size)
 {
-    char *env = getenv("TERM_PROGRAM");
+    const char *env = getenv("TERM_PROGRAM");
     if (env && *env) {
         str_cpy(buf, env, size);
         return;
@@ -371,7 +364,7 @@ detect_console(char *term, size_t term_size, char *wm, size_t wm_size)
 static int
 detect_container(void)
 {
-    char *env = getenv("CONTAINER_ID");
+    const char *env = getenv("CONTAINER_ID");
     if (env && *env) return 1;
     if (access("/.dockerenv", F_OK) == 0) return 1;
 
@@ -421,15 +414,15 @@ fetch_wsl_term(char *buf, size_t size)
         return;
     }
 
-    char *env = getenv("TERM");
+    const char *env = getenv("TERM");
     str_cpy(buf, (env && *env) ? env : "", size);
 }
 
 static void
 fetch_wsl_wm(char *buf, size_t size)
 {
-    char *wayland = getenv("WAYLAND_DISPLAY");
-    char *display = getenv("DISPLAY");
+    const char *wayland = getenv("WAYLAND_DISPLAY");
+    const char *display = getenv("DISPLAY");
     str_cpy(buf, ((wayland && *wayland) || (display && *display)) ? "WSLg" : "unknown", size);
 }
 
@@ -442,7 +435,7 @@ fetch_wm(char *buf, size_t size)
         return;
     }
 
-    struct dirent *entry;
+    const struct dirent *entry;
     char path[64], comm[MAX_NAME];
 
     while ((entry = readdir(dir))) {
@@ -461,15 +454,6 @@ fetch_wm(char *buf, size_t size)
 
     closedir(dir);
     str_cpy(buf, "unknown", size);
-}
-
-static void
-read_base_info(info_t *info)
-{
-    fetch_user(info->user, sizeof(info->user));
-    fetch_host(info->host, sizeof(info->host));
-    fetch_os(info->os, sizeof(info->os));
-    fetch_kernel(info->kernel, sizeof(info->kernel));
 }
 
 static void
@@ -496,23 +480,12 @@ detect_session(info_t *info, const proc_t *chain, size_t count)
         fetch_wsl_term(info->term, sizeof(info->term));
         if (!info->term[0]) fetch_term(chain, count, info->term, sizeof(info->term));
         fetch_wsl_wm(info->wm, sizeof(info->wm));
-        if (str_eq(info->wm, "unknown")) fetch_wm(info->wm, sizeof(info->wm));
+        if (strcmp(info->wm, "unknown") == 0) fetch_wm(info->wm, sizeof(info->wm));
         return;
     }
 
     fetch_term(chain, count, info->term, sizeof(info->term));
     fetch_wm(info->wm, sizeof(info->wm));
-}
-
-static void
-kernel_short(char *dst, size_t size, const char *src)
-{
-    size_t i = 0;
-    while (i + 1 < size && src[i] && src[i] != ' ') {
-        dst[i] = src[i];
-        i++;
-    }
-    dst[i] = '\0';
 }
 
 static void
@@ -530,17 +503,14 @@ display(const info_t *info, int color)
     const char *c3 = color ? C3 : "";
     const char *cr = color ? CR : "";
 
-    char krel[MAX_NAME], userhost[MAX_NAME * 2 + 1];
-    kernel_short(krel, sizeof(krel), info->kernel);
-
-    int n = snprintf(userhost, sizeof(userhost), "%s@%s", info->user, info->host);
-    size_t sep = (n > 0 && (size_t)n < sizeof(userhost)) ? (size_t)n : 0;
+    size_t klen = strcspn(info->kernel, " ");
+    size_t sep = strlen(info->user) + strlen(info->host) + 1;
 
     printf("%s    ___ %s     %s%s@%s%s\n", c1, cr, c1, info->user, info->host, cr);
     printf("%s   (%s.· %s|%s     ", c1, c2, c1, cr);
     print_sep(sep);
     printf("%s   (%s<>%s %s|%s     %sOS:%s %s\n", c1, c3, cr, c1, cr, c3, cr, info->os);
-    printf("%s  / %s__  %s\\%s    %sKernel:%s %s\n", c1, c2, c1, cr, c3, cr, krel);
+    printf("%s  / %s__  %s\\%s    %sKernel:%s %.*s\n", c1, c2, c1, cr, c3, cr, (int)klen, info->kernel);
     printf("%s ( %s/  \\ %s/|%s   %sShell:%s %s\n", c1, c2, c1, cr, c3, cr, info->shell);
     printf("%s_%s/\\ %s__)%s/%s_%s)%s   %sWM:%s %s\n", c3, c1, c2, c1, c3, c1, cr, c3, cr, info->wm);
     printf("%s%s\\/%s-____%s\\/%s    %sTerminal:%s %s\n\n", c1, c3, c1, c3, cr, c3, cr, info->term);
@@ -562,7 +532,7 @@ set_limits(void)
     struct rlimit rlim;
 
 #ifndef __SANITIZE_ADDRESS__
-    rlim.rlim_cur = rlim.rlim_max = 50 * 1024 * 1024;
+    rlim.rlim_cur = rlim.rlim_max = (rlim_t)50 * 1024 * 1024;
     if (setrlimit(RLIMIT_AS, &rlim)) return -1;
 #endif
 
@@ -600,7 +570,7 @@ main(int argc, char **argv)
         return 1;
     }
 
-    if (argc > 1 && (str_eq(argv[1], "--version") || str_eq(argv[1], "-v"))) {
+    if (argc > 1 && (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-v") == 0)) {
         print_version();
         return 0;
     }
@@ -609,7 +579,10 @@ main(int argc, char **argv)
     info_t info;
 
     size_t count = build_chain(chain, ARRLEN(chain));
-    read_base_info(&info);
+    fetch_user(info.user, sizeof(info.user));
+    fetch_host(info.host, sizeof(info.host));
+    fetch_os(info.os, sizeof(info.os));
+    fetch_kernel(info.kernel, sizeof(info.kernel));
     detect_session(&info, chain, count);
     display(&info, isatty(STDOUT_FILENO));
 

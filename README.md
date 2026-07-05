@@ -13,7 +13,7 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine).
 
 | Tool | Mean | Binary |
 |---|---|---|
-| **zeptofetch** | **732.4 µs ± 77.7 µs** | 32 KB |
+| **zeptofetch** | **513.3 µs ± 42.8 µs** | 27 KB |
 | fastfetch | 6.7 ms ± 1.0 ms | ~200 KB |
 | neofetch | 405.1 ms ± 21.0 ms | ~50 KB |
 
@@ -30,7 +30,13 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine).
 
 </details>
 
-<sub>Benchmarks from a statically-linked v1.9 binary. Results vary by system.</sub>
+Run locally with:
+```bash
+make clean && make
+hyperfine -N --warmup 5 ./zeptofetch
+```
+
+<sub>Results vary by system.</sub>
 
 ## Installation
 **From source:**
@@ -53,16 +59,10 @@ Edit `config.h` before building:
 #define CR "\033[0m"         // reset
 #define C1 "\033[1;34m"      // primary   (bold blue)
 #define C2 "\033[1;37m"      // secondary (bold white)
-#define C3 "\033[38;5;208m"  // accent    (bold orange)
+#define C3 "\033[1;38;5;208m" // accent    (bold orange)
 ```
 ```bash
 make clean && make && sudo make install
-```
-
-## Benchmarking
-```bash
-make clean && make
-hyperfine ./zeptofetch
 ```
 
 ## How it works
