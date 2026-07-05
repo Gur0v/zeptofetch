@@ -11,7 +11,7 @@ TARGET  = zeptofetch
 STD  = -std=c99 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE
 WARN = -Wall -Wextra -Wpedantic -Werror=format=2 -Werror=implicit-fallthrough \
        -Werror=shift-overflow -Werror=vla -Werror=pointer-arith
-SEC  = -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fstack-clash-protection \
+SEC  = -D_FORTIFY_SOURCE=3 -fstack-protector-strong -fstack-clash-protection \
        -fcf-protection=full -fno-strict-overflow -fno-strict-aliasing
 
 export TZ=UTC

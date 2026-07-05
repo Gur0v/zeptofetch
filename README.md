@@ -13,7 +13,7 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine).
 
 | Tool | Mean | Binary |
 |---|---|---|
-| **zeptofetch** | **513.3 µs ± 42.8 µs** | 27 KB |
+| **zeptofetch** | **595.3 µs ± 45.0 µs** | 27 KB |
 | fastfetch | 6.7 ms ± 1.0 ms | ~200 KB |
 | neofetch | 405.1 ms ± 21.0 ms | ~50 KB |
 

@@ -227,6 +227,12 @@ base_name(const char *path, char *out, size_t size)
 static void
 fetch_user(char *buf, size_t size)
 {
+    const char *env = getenv("USER");
+    if (env && *env) {
+        str_cpy(buf, env, size);
+        return;
+    }
+
     const struct passwd *pw = getpwuid(getuid());
     str_cpy(buf, (pw && pw->pw_name) ? pw->pw_name : "user", size);
 }
@@ -542,6 +548,9 @@ set_limits(void)
     rlim.rlim_cur = rlim.rlim_max = 256;
     if (setrlimit(RLIMIT_NOFILE, &rlim)) return -1;
 
+    rlim.rlim_cur = rlim.rlim_max = 0;
+    if (setrlimit(RLIMIT_CORE, &rlim)) return -1;
+
     return 0;
 }
 
@@ -551,8 +560,10 @@ harden(void)
     (void)prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
     (void)prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
 
-    if (getegid() != getgid() && setgid(getgid())) return -1;
-    if (geteuid() != getuid() && setuid(getuid())) return -1;
+    if (geteuid() != getuid() || getegid() != getgid()) {
+        fprintf(stderr, "Error: refusing elevated execution\n");
+        return -1;
+    }
 
     if (set_limits())
         fprintf(stderr, "Warn: limits failed\n");
