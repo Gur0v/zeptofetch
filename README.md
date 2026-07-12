@@ -32,11 +32,9 @@ Tested with [hyperfine](https://github.com/sharkdp/hyperfine).
 
 Run locally with:
 ```bash
-make clean && make
+make clean && make NATIVE=-march=native
 hyperfine -N --warmup 5 ./zeptofetch
 ```
-
-Use `make clean && make NATIVE=-march=native` to optimize for the current machine.
 
 <sub>Results vary by system.</sub>
 
@@ -45,7 +43,7 @@ Use `make clean && make NATIVE=-march=native` to optimize for the current machin
 ```bash
 git clone https://gitlab.archlinux.org/gurov/zeptofetch.git
 cd zeptofetch
-make
+make NATIVE=-march=native
 sudo make install
 ```
 
