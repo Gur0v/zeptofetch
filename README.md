@@ -36,6 +36,8 @@ make clean && make
 hyperfine -N --warmup 5 ./zeptofetch
 ```
 
+Use `make clean && make NATIVE=-march=native` to optimize for the current machine.
+
 <sub>Results vary by system.</sub>
 
 ## Installation
@@ -66,8 +68,6 @@ paru -S zeptofetch-git  # git HEAD
 **WSL2:** checked via `WSLENV`, `/mnt/wsl`, `binfmt_misc`, and kernel version strings.
 
 **Privileges:** `PR_SET_NO_NEW_PRIVS` and `PR_SET_DUMPABLE` set at startup. `RLIMIT_AS`, `RLIMIT_CPU`, `RLIMIT_NOFILE`, and `RLIMIT_CORE` enforced.
-
-> For accuracy/speed tradeoffs, see [zeptofetch-u](https://github.com/Gur0v/zeptofetch-u), a more stripped-down variant that runs in ~200 µs.
 
 ## Requirements
 - Linux x86_64, kernel 2.6.32+

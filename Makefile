@@ -1,12 +1,14 @@
 .POSIX:
 
-CC      = gcc
-CFLAGS  = -march=native -O3 -flto -pipe -fPIE
+CC      = cc
+STRIP   = strip
+CFLAGS  = -O3 -flto -pipe -fPIE $(NATIVE)
 LDFLAGS = -pie -Wl,-z,relro,-z,now,-z,noexecstack,--gc-sections,--hash-style=gnu
 
-PREFIX ?= /usr/local
+PREFIX = /usr/local
 BINDIR  = $(PREFIX)/bin
 TARGET  = zeptofetch
+DEBUG_TARGET = zeptofetch-debug
 
 STD  = -std=c99 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE
 WARN = -Wall -Wextra -Wpedantic -Werror=format=2 -Werror=implicit-fallthrough \
@@ -16,21 +18,26 @@ SEC  = -D_FORTIFY_SOURCE=3 -fstack-protector-strong -fstack-clash-protection \
 
 export TZ=UTC
 
-.PHONY: all debug clean install uninstall
+.PHONY: all debug check clean install uninstall
 
 all: $(TARGET)
 
-$(TARGET): zeptofetch.c
+$(TARGET): zeptofetch.c Makefile
 	$(CC) $(STD) $(CFLAGS) $(WARN) $(SEC) -ffunction-sections -fdata-sections $(LDFLAGS) -o $@ zeptofetch.c
-	strip --strip-all --remove-section=.note --remove-section=.comment $@
+	$(STRIP) --strip-all --remove-section=.note --remove-section=.comment $@
 
-debug: CFLAGS = -O0 -g3 -fsanitize=address,undefined -fno-omit-frame-pointer
-debug: LDFLAGS =
-debug: clean
-	$(CC) $(STD) $(CFLAGS) $(WARN) -o $(TARGET) zeptofetch.c
+debug: $(DEBUG_TARGET)
+
+$(DEBUG_TARGET): zeptofetch.c Makefile
+	$(CC) $(STD) -O0 -g3 -fsanitize=address,undefined -fno-omit-frame-pointer $(WARN) -o $@ zeptofetch.c
+
+check: $(TARGET)
+	./$(TARGET) --version >/dev/null
+	! ./$(TARGET) --invalid >/dev/null 2>&1
+	./$(TARGET) >/dev/null
 
 clean:
-	rm -f $(TARGET)
+	rm -f $(TARGET) $(DEBUG_TARGET)
 
 install: $(TARGET)
 	mkdir -p $(DESTDIR)$(BINDIR)

@@ -11,7 +11,7 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
-#define VERSION     "v2.0"
+#define VERSION     "v2.1"
 #define COPYRIGHT   "2024-2026"
 
 #define CR          "\033[0m"
@@ -113,15 +113,6 @@ valid_pid(pid_t pid)
     return pid > 0 && pid <= MAX_PID;
 }
 
-static unsigned long
-fast_atoul(const char *s)
-{
-    unsigned long n = 0;
-    while (*s >= '0' && *s <= '9')
-        n = n * 10 + (unsigned long)(*s++ - '0');
-    return n;
-}
-
 static void
 proc_path(pid_t pid, const char *file, char *buf, size_t size)
 {
@@ -175,7 +166,7 @@ read_proc(pid_t pid, proc_t *p, int want_exe)
     if (!rparen || rparen[1] != ' ' || !rparen[2] || rparen[3] != ' ')
         return -1;
 
-    p->ppid = (pid_t)fast_atoul(rparen + 4);
+    p->ppid = (pid_t)strtoul(rparen + 4, NULL, 10);
     if (!valid_pid(p->ppid)) p->ppid = -1;
 
     if (want_exe) {
@@ -325,8 +316,9 @@ fetch_shell(const proc_t *chain, size_t count, char *buf, size_t size)
     for (size_t i = 0; i < count; i++) {
         if (!chain[i].exe[0]) continue;
         base_name(chain[i].exe, name, sizeof(name));
-        if (find_match(name, shells, ARRLEN(shells))) {
-            str_cpy(buf, shell_alias(name), size);
+        const char *match = find_match(name, shells, ARRLEN(shells));
+        if (match) {
+            str_cpy(buf, shell_alias(match), size);
             return;
         }
     }
@@ -436,14 +428,6 @@ detect_container(void)
 }
 
 static int
-detect_ssh(void)
-{
-    return getenv("SSH_CLIENT") != NULL ||
-           getenv("SSH_TTY") != NULL ||
-           getenv("SSH_CONNECTION") != NULL;
-}
-
-static int
 detect_wsl(void)
 {
     char buf[512];
@@ -464,44 +448,16 @@ detect_wsl(void)
 }
 
 static void
-fetch_wsl_term(char *buf, size_t size)
-{
-    if (getenv("WT_SESSION") || getenv("WT_PROFILE_ID")) {
-        str_cpy(buf, "Windows Terminal", size);
-        return;
-    }
-
-    const char *env = getenv("TERM");
-    str_cpy(buf, (env && *env) ? env : "", size);
-}
-
-static void
-fetch_wsl_wm(char *buf, size_t size)
-{
-    const char *wayland = getenv("WAYLAND_DISPLAY");
-    const char *display = getenv("DISPLAY");
-    str_cpy(buf, ((wayland && *wayland) || (display && *display)) ? "WSLg" : "unknown", size);
-}
-
-static int
-fetch_wm_env(char *buf, size_t size)
+fetch_wm(char *buf, size_t size)
 {
     if (getenv("SWAYSOCK")) {
         str_cpy(buf, "sway", size);
-        return 1;
+        return;
     }
     if (getenv("HYPRLAND_INSTANCE_SIGNATURE")) {
         str_cpy(buf, "Hyprland", size);
-        return 1;
+        return;
     }
-
-    return 0;
-}
-
-static void
-fetch_wm(char *buf, size_t size)
-{
-    if (fetch_wm_env(buf, size)) return;
 
     DIR *dir = opendir("/proc");
     if (!dir) {
@@ -515,7 +471,7 @@ fetch_wm(char *buf, size_t size)
     while ((entry = readdir(dir))) {
         if (entry->d_name[0] < '0' || entry->d_name[0] > '9') continue;
 
-        proc_path((pid_t)fast_atoul(entry->d_name), "comm", path, sizeof(path));
+        proc_path((pid_t)strtoul(entry->d_name, NULL, 10), "comm", path, sizeof(path));
         if (read_first_line(path, comm, sizeof(comm)) != 0) continue;
 
         const char *match = find_match(comm, wms, ARRLEN(wms));
@@ -544,16 +500,23 @@ detect_session(info_t *info, const proc_t *chain, size_t count)
         return;
     }
 
-    if (detect_ssh()) {
+    if (getenv("SSH_CLIENT") || getenv("SSH_TTY") || getenv("SSH_CONNECTION")) {
         str_cpy(info->term, "ssh", sizeof(info->term));
         str_cpy(info->wm, "none", sizeof(info->wm));
         return;
     }
 
     if (detect_wsl()) {
-        fetch_wsl_term(info->term, sizeof(info->term));
+        const char *term = getenv("TERM");
+        str_cpy(info->term,
+                (getenv("WT_SESSION") || getenv("WT_PROFILE_ID")) ? "Windows Terminal" :
+                (term && *term) ? term : "",
+                sizeof(info->term));
         if (!info->term[0]) fetch_term(chain, count, info->term, sizeof(info->term));
-        fetch_wsl_wm(info->wm, sizeof(info->wm));
+        const char *wayland = getenv("WAYLAND_DISPLAY");
+        const char *display = getenv("DISPLAY");
+        str_cpy(info->wm, ((wayland && *wayland) || (display && *display)) ? "WSLg" : "unknown",
+                sizeof(info->wm));
         if (strcmp(info->wm, "unknown") == 0) fetch_wm(info->wm, sizeof(info->wm));
         return;
     }
@@ -646,6 +609,10 @@ main(int argc, char **argv)
     if (argc > 1 && (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-v") == 0)) {
         print_version();
         return 0;
+    }
+    if (argc > 1) {
+        fprintf(stderr, "Usage: %s [-v|--version]\n", argv[0]);
+        return 1;
     }
 
     proc_t chain[MAX_CHAIN];
