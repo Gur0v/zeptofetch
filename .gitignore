@@ -1,2 +1,6 @@
 /zeptofetch
 /zeptofetch-debug
+
+/result
+/result-*
+.direnv/
