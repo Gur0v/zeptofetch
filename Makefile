@@ -5,7 +5,7 @@ STRIP   = strip
 CFLAGS  = -O3 -flto -pipe -fPIE $(NATIVE)
 LDFLAGS = -pie -Wl,-z,relro,-z,now,-z,noexecstack,--gc-sections,--hash-style=gnu
 
-PREFIX = /usr/local
+PREFIX  = /usr/local
 BINDIR  = $(PREFIX)/bin
 TARGET  = zeptofetch
 DEBUG_TARGET = zeptofetch-debug
