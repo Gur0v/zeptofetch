@@ -46,11 +46,14 @@ cd zeptofetch
 make NATIVE=-march=native
 sudo make install
 ```
-
 **AUR:**
 ```bash
 paru -S zeptofetch      # stable
 paru -S zeptofetch-git  # git HEAD
+```
+**Nix (flake):**
+```bash
+nix profile install github:Gur0v/zeptofetch
 ```
 
 ## How it works
@@ -73,6 +76,8 @@ paru -S zeptofetch-git  # git HEAD
 - GCC or Clang
 
 WSL2 support is limited. BSD, macOS, and Termux are not supported.
+
+The Nix build skips `-march=native` (not reproducible) and patches out the `RLIMIT_AS` hardening limit (deadlocks under scudo).
 
 ## License
 [GPL-3.0](LICENSE)
