@@ -13,6 +13,11 @@
           version = "2.1";
           src = self;
 
+          # RLIMIT_AS(50MB) fights scudo's upfront reservation and hangs the binary
+          postPatch = ''
+            sed -i '/__SANITIZE_ADDRESS__/,+3d' zeptofetch.c
+          '';
+
           # -march=native isn't reproducible in a Nix build; drop NATIVE.
           buildPhase = "make";
           installPhase = "make install PREFIX=$out";
