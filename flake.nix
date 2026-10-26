@@ -5,20 +5,14 @@
   inputs.flake-utils.url = "github:numtide/flake-utils";
 
   outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
+    flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
       let pkgs = nixpkgs.legacyPackages.${system};
       in {
         packages.default = pkgs.stdenv.mkDerivation {
           pname = "zeptofetch";
-          version = "2.1";
+          version = "2.2";
           src = self;
 
-          # RLIMIT_AS(50MB) fights scudo's upfront reservation and hangs the binary
-          postPatch = ''
-            sed -i '/__SANITIZE_ADDRESS__/,+3d' zeptofetch.c
-          '';
-
-          # -march=native isn't reproducible in a Nix build; drop NATIVE.
           buildPhase = "make";
           installPhase = "make install PREFIX=$out";
         };

@@ -11,7 +11,7 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
-#define VERSION     "v2.1"
+#define VERSION     "v2.2"
 #define COPYRIGHT   "2024-2026"
 
 #define CR          "\033[0m"
@@ -90,7 +90,7 @@ static const char *wms[] = {
     "lfwm", "metacity", "notion", "olivetti",
     "plwm", "snapwm", "tinywm", "trayer",
     "twm", "vwm", "waimea", "wmii",
-    "wmx", "acme", "mango",
+    "wmx", "acme", "mango", "melon",
 };
 
 static void
@@ -116,7 +116,7 @@ valid_pid(pid_t pid)
 static void
 proc_path(pid_t pid, const char *file, char *buf, size_t size)
 {
-    if (!valid_pid(pid) || !file || !*file || strchr(file, '/')) {
+    if (!valid_pid(pid) || !file || strchr(file, '/')) {
         if (size) buf[0] = '\0';
         return;
     }
@@ -126,6 +126,7 @@ proc_path(pid_t pid, const char *file, char *buf, size_t size)
 static int
 read_link(const char *path, char *buf, size_t size)
 {
+    if (!size) return -1;
     ssize_t len = readlink(path, buf, size - 1);
     if (len <= 0) return -1;
     buf[len] = '\0';
@@ -135,6 +136,7 @@ read_link(const char *path, char *buf, size_t size)
 static int
 read_first_line(const char *path, char *buf, size_t size)
 {
+    if (!size) return -1;
     int fd = open(path, O_RDONLY);
     if (fd < 0) return -1;
 
@@ -150,6 +152,36 @@ read_first_line(const char *path, char *buf, size_t size)
 }
 
 static int
+read_record(const char *path, char *buf, size_t size)
+{
+    if (!size) return -1;
+    FILE *f = fopen(path, "r");
+    if (!f) return -1;
+    size_t n = fread(buf, 1, size - 1, f);
+    int failed = ferror(f);
+    if (!failed && !feof(f)) failed = fgetc(f) != EOF || ferror(f);
+    fclose(f);
+    buf[n] = '\0';
+    return n && !failed ? 0 : -1;
+}
+
+static pid_t
+parse_proc_stat(const char *buf)
+{
+    const char *p = strrchr(buf, ')');
+    if (!p || p[1] != ' ' || !p[2] || p[3] != ' ') return -1;
+    p += 4;
+    if (*p < '0' || *p > '9') return -1;
+    unsigned long parent = 0;
+    while (*p >= '0' && *p <= '9') {
+        parent = parent * 10 + (unsigned)(*p++ - '0');
+        if (parent > MAX_PID) return -1;
+    }
+    if (*p != ' ' && *p != '\n' && *p != '\0') return -1;
+    return valid_pid((pid_t)parent) ? (pid_t)parent : -1;
+}
+
+static int
 read_proc(pid_t pid, proc_t *p, int want_exe)
 {
     char path[64], buf[4096];
@@ -160,14 +192,9 @@ read_proc(pid_t pid, proc_t *p, int want_exe)
     p->exe[0] = '\0';
 
     proc_path(pid, "stat", path, sizeof(path));
-    if (read_first_line(path, buf, sizeof(buf)) != 0) return -1;
+    if (read_record(path, buf, sizeof(buf)) != 0) return -1;
 
-    const char *rparen = strrchr(buf, ')');
-    if (!rparen || rparen[1] != ' ' || !rparen[2] || rparen[3] != ' ')
-        return -1;
-
-    p->ppid = (pid_t)strtoul(rparen + 4, NULL, 10);
-    if (!valid_pid(p->ppid)) p->ppid = -1;
+    p->ppid = parse_proc_stat(buf);
 
     if (want_exe) {
         proc_path(pid, "exe", path, sizeof(path));
@@ -248,30 +275,68 @@ fetch_user(char *buf, size_t size)
 static void
 fetch_host(char *buf, size_t size)
 {
+    if (!size) return;
+    if (!size) return;
     if (gethostname(buf, size) != 0)
         str_cpy(buf, "localhost", size);
     else
         buf[size - 1] = '\0';
+    str_cpy(buf, buf, size);
 }
 
 static int
-parse_os_value(const char *key, char *line, size_t size, char *out)
+parse_os_value(const char *line, const char *key, char *out, size_t n)
 {
+    if (!n) return 0;
+    if (!n) return 0;
     size_t klen = strlen(key);
-    if (strncmp(line, key, klen) != 0) return -1;
+    if (strncmp(line, key, klen) != 0 || line[klen] != '=') return 0;
+    const char *v = line + klen + 1;
+    char quote = (*v == '\'' || *v == '"') ? *v++ : '\0';
+    char tmp[MAX_LINE];
+    size_t used = 0;
+    int closed = !quote;
+    while (*v && *v != '\n' && *v != '\r') {
+        if (quote && *v == quote) {
+            v++;
+            closed = 1;
+            break;
+        }
+        if (*v == '\\' && quote != '\'') {
+            if (!v[1] || v[1] == '\n' || v[1] == '\r') return 0;
+            if (!quote || v[1] == '$' || v[1] == '`' || v[1] == '"' || v[1] == '\\') v++;
+        }
+        if (used + 1 >= sizeof(tmp)) return 0;
+        tmp[used++] = *v++;
+    }
+    if (!closed) return 0;
+    while (*v == ' ' || *v == '\t' || *v == '\r') v++;
+    if (*v && *v != '\n') return 0;
+    tmp[used] = '\0';
+    str_cpy(out, tmp, n);
+    return out[0] != '\0';
+}
 
-    char *value = line + klen;
-    value[strcspn(value, "\n")] = '\0';
+static void
+read_os(FILE *f, char *buf, size_t size)
+{
+    if (!size) return;
+    char line[MAX_LINE], name[MAX_LINE] = "";
+    buf[0] = '\0';
 
-    if ((*value == '"' || *value == '\'') && value[1]) {
-        char quote = *value++;
-        char *end = strrchr(value, quote);
-        if (end) *end = '\0';
+    while (fgets(line, sizeof(line), f)) {
+        if (!strchr(line, '\n') && !feof(f)) {
+            int c;
+            while ((c = fgetc(f)) != '\n' && c != EOF) {}
+            if (c == EOF) break;
+            continue;
+        }
+        if (parse_os_value(line, "PRETTY_NAME", buf, size)) break;
+        if (!*name) parse_os_value(line, "NAME", name, sizeof(name));
     }
 
-    if (!*value) return -1;
-    str_cpy(out, value, size);
-    return 0;
+    if (!*buf)
+        str_cpy(buf, *name ? name : "Linux", size);
 }
 
 static void
@@ -283,19 +348,8 @@ fetch_os(char *buf, size_t size)
         str_cpy(buf, "Linux", size);
         return;
     }
-
-    char line[MAX_LINE], name[MAX_LINE] = "";
-    buf[0] = '\0';
-
-    while (fgets(line, sizeof(line), f)) {
-        if (parse_os_value("PRETTY_NAME=", line, size, buf) == 0) break;
-        if (!*name) parse_os_value("NAME=", line, sizeof(name), name);
-    }
-
+    read_os(f, buf, size);
     fclose(f);
-
-    if (!*buf)
-        str_cpy(buf, *name ? name : "Linux", size);
 }
 
 static void
@@ -367,12 +421,6 @@ fetch_term(const proc_t *chain, size_t count, char *buf, size_t size)
         return;
     }
 
-    env = getenv("TERMINAL");
-    if (env && *env) {
-        base_name(env, buf, size);
-        return;
-    }
-
     env = getenv("LC_TERMINAL");
     if (env && *env) {
         str_cpy(buf, env, size);
@@ -380,6 +428,7 @@ fetch_term(const proc_t *chain, size_t count, char *buf, size_t size)
     }
 
     char name[MAX_NAME];
+    char fallback[MAX_NAME] = "";
     for (size_t i = 1; i < count; i++) {
         if (!chain[i].exe[0]) continue;
         base_name(chain[i].exe, name, sizeof(name));
@@ -387,10 +436,22 @@ fetch_term(const proc_t *chain, size_t count, char *buf, size_t size)
         if (find_match(name, wrappers, ARRLEN(wrappers))) continue;
 
         const char *match = find_match(name, terms, ARRLEN(terms));
-        str_cpy(buf, match ? match : name, size);
-        return;
+        if (match) {
+            str_cpy(buf, match, size);
+            return;
+        }
+        if (!fallback[0]) str_cpy(fallback, name, sizeof(fallback));
     }
 
+    if (fallback[0]) {
+        str_cpy(buf, fallback, size);
+        return;
+    }
+    env = getenv("TERMINAL");
+    if (env && *env) {
+        base_name(env, buf, size);
+        return;
+    }
     env = getenv("TERM");
     str_cpy(buf, (env && *env) ? env : "unknown", size);
 }
@@ -467,11 +528,17 @@ fetch_wm(char *buf, size_t size)
 
     const struct dirent *entry;
     char path[64], comm[MAX_NAME];
+    uid_t uid = getuid();
 
     while ((entry = readdir(dir))) {
         if (entry->d_name[0] < '0' || entry->d_name[0] > '9') continue;
 
-        proc_path((pid_t)strtoul(entry->d_name, NULL, 10), "comm", path, sizeof(path));
+        pid_t pid = (pid_t)strtoul(entry->d_name, NULL, 10);
+        struct stat st;
+        proc_path(pid, "", path, sizeof(path));
+        if (stat(path, &st) != 0 || st.st_uid != uid) continue;
+
+        proc_path(pid, "comm", path, sizeof(path));
         if (read_first_line(path, comm, sizeof(comm)) != 0) continue;
 
         const char *match = find_match(comm, wms, ARRLEN(wms));
@@ -557,26 +624,25 @@ print_version(void)
     printf("CONFIG: CHAIN=%d PID=%d\n", MAX_CHAIN, MAX_PID);
 }
 
-static int
+static void
 set_limits(void)
 {
-    struct rlimit rlim;
-
-#ifndef __SANITIZE_ADDRESS__
-    rlim.rlim_cur = rlim.rlim_max = (rlim_t)50 * 1024 * 1024;
-    if (setrlimit(RLIMIT_AS, &rlim)) return -1;
-#endif
-
-    rlim.rlim_cur = rlim.rlim_max = 5;
-    if (setrlimit(RLIMIT_CPU, &rlim)) return -1;
-
-    rlim.rlim_cur = rlim.rlim_max = 256;
-    if (setrlimit(RLIMIT_NOFILE, &rlim)) return -1;
-
-    rlim.rlim_cur = rlim.rlim_max = 0;
-    if (setrlimit(RLIMIT_CORE, &rlim)) return -1;
-
-    return 0;
+    const struct { int resource; rlim_t cap; const char *name; } limits[] = {
+        { RLIMIT_CPU, 5, "RLIMIT_CPU" },
+        { RLIMIT_NOFILE, 256, "RLIMIT_NOFILE" },
+        { RLIMIT_CORE, 0, "RLIMIT_CORE" }
+    };
+    for (size_t i = 0; i < ARRLEN(limits); i++) {
+        struct rlimit r;
+        if (getrlimit(limits[i].resource, &r) != 0) {
+            fprintf(stderr, "Warn: %s get failed\n", limits[i].name);
+            continue;
+        }
+        if (r.rlim_max > limits[i].cap) r.rlim_max = limits[i].cap;
+        if (r.rlim_cur > r.rlim_max) r.rlim_cur = r.rlim_max;
+        if (setrlimit(limits[i].resource, &r) != 0)
+            fprintf(stderr, "Warn: %s set failed\n", limits[i].name);
+    }
 }
 
 static int
@@ -590,8 +656,7 @@ harden(void)
         return -1;
     }
 
-    if (set_limits())
-        fprintf(stderr, "Warn: limits failed\n");
+    set_limits();
 
     return 0;
 }
@@ -601,17 +666,17 @@ main(int argc, char **argv)
 {
     if (harden()) return 1;
 
-    if (access("/proc/self/stat", R_OK) != 0) {
-        fprintf(stderr, "Error: cannot read /proc (hidepid enabled?)\n");
-        return 1;
-    }
-
-    if (argc > 1 && (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-v") == 0)) {
+    if (argc == 2 && (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-v") == 0)) {
         print_version();
         return 0;
     }
     if (argc > 1) {
-        fprintf(stderr, "Usage: %s [-v|--version]\n", argv[0]);
+        fprintf(stderr, "Usage: zeptofetch [-v|--version]\n");
+        return 1;
+    }
+
+    if (access("/proc/self/stat", R_OK) != 0) {
+        fprintf(stderr, "Error: cannot read /proc (hidepid enabled?)\n");
         return 1;
     }
 
