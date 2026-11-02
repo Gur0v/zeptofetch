@@ -15,7 +15,7 @@ WARN = -Wall -Wextra -Wpedantic -Werror=format=2 -Werror=implicit-fallthrough \
        -Werror=shift-overflow -Werror=vla -Werror=pointer-arith
 SEC  = -D_FORTIFY_SOURCE=3 -fstack-protector-strong -fstack-clash-protection \
        $(CF_PROTECTION) -fno-strict-overflow -fno-strict-aliasing
-CF_PROTECTION = $(shell printf 'int x;\n' | $(CC) -Werror -fcf-protection=full -x c -c -o /dev/null - >/dev/null 2>&1 && printf '%s' -fcf-protection=full)
+CF_PROTECTION = $$(printf 'int x;\n' | $(CC) -Werror -fcf-protection=full -x c -c -o /dev/null - >/dev/null 2>&1 && printf '%s' -fcf-protection=full)
 
 export TZ=UTC
 

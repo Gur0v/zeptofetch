@@ -1,3 +1,6 @@
+#if defined(__FreeBSD__) && defined(_POSIX_C_SOURCE)
+#undef _POSIX_C_SOURCE
+#endif
 #include <dirent.h>
 #include <fcntl.h>
 #include <pwd.h>
@@ -5,13 +8,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(__FreeBSD__)
+#include <sys/param.h>
+#include <sys/sysctl.h>
+#include <sys/user.h>
+#include <sys/procctl.h>
+#define DEFAULT_OS "FreeBSD"
+#else
 #include <sys/prctl.h>
+#define DEFAULT_OS "Linux"
+#endif
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/utsname.h>
 #include <unistd.h>
 
-#define VERSION     "v2.2"
+#define VERSION     "v2.3"
 #define COPYRIGHT   "2024-2026"
 
 #define CR          "\033[0m"
@@ -113,6 +125,7 @@ valid_pid(pid_t pid)
     return pid > 0 && pid <= MAX_PID;
 }
 
+#if !defined(__FreeBSD__)
 static void
 proc_path(pid_t pid, const char *file, char *buf, size_t size)
 {
@@ -123,6 +136,9 @@ proc_path(pid_t pid, const char *file, char *buf, size_t size)
     snprintf(buf, size, "/proc/%d/%s", (int)pid, file);
 }
 
+#endif
+
+#if !defined(__FreeBSD__) || defined(ZEPTOFETCH_TEST)
 static int
 read_link(const char *path, char *buf, size_t size)
 {
@@ -165,6 +181,9 @@ read_record(const char *path, char *buf, size_t size)
     return n && !failed ? 0 : -1;
 }
 
+#endif
+
+#if !defined(__FreeBSD__)
 static pid_t
 parse_proc_stat(const char *buf)
 {
@@ -181,16 +200,33 @@ parse_proc_stat(const char *buf)
     return valid_pid((pid_t)parent) ? (pid_t)parent : -1;
 }
 
+#endif
+
 static int
 read_proc(pid_t pid, proc_t *p, int want_exe)
 {
-    char path[64], buf[4096];
-
     if (!valid_pid(pid) || !p) return -1;
 
     p->ppid = -1;
     p->exe[0] = '\0';
 
+#if defined(__FreeBSD__)
+    struct kinfo_proc kp;
+    size_t len = sizeof(kp);
+    int mib[] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, pid };
+    if (sysctl(mib, ARRLEN(mib), &kp, &len, NULL, 0) != 0 ||
+        len != sizeof(kp)) return -1;
+    p->ppid = valid_pid(kp.ki_ppid) ? kp.ki_ppid : -1;
+    if (want_exe) {
+        int path_mib[] = { CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, pid };
+        len = sizeof(p->exe);
+        if (sysctl(path_mib, ARRLEN(path_mib), p->exe, &len, NULL, 0) != 0 ||
+            len == 0 || !p->exe[0])
+            str_cpy(p->exe, kp.ki_comm, sizeof(p->exe));
+        p->exe[sizeof(p->exe) - 1] = '\0';
+    }
+#else
+    char path[64], buf[4096];
     proc_path(pid, "stat", path, sizeof(path));
     if (read_record(path, buf, sizeof(buf)) != 0) return -1;
 
@@ -201,6 +237,7 @@ read_proc(pid_t pid, proc_t *p, int want_exe)
         (void)read_link(path, p->exe, sizeof(p->exe));
     }
 
+#endif
     return 0;
 }
 
@@ -336,16 +373,19 @@ read_os(FILE *f, char *buf, size_t size)
     }
 
     if (!*buf)
-        str_cpy(buf, *name ? name : "Linux", size);
+        str_cpy(buf, *name ? name : DEFAULT_OS, size);
 }
 
 static void
 fetch_os(char *buf, size_t size)
 {
     FILE *f = fopen("/etc/os-release", "r");
+#if defined(__FreeBSD__)
+    if (!f) f = fopen("/var/run/os-release", "r");
+#endif
     if (!f) f = fopen("/usr/lib/os-release", "r");
     if (!f) {
-        str_cpy(buf, "Linux", size);
+        str_cpy(buf, DEFAULT_OS, size);
         return;
     }
     read_os(f, buf, size);
@@ -459,6 +499,11 @@ fetch_term(const proc_t *chain, size_t count, char *buf, size_t size)
 static int
 detect_console(char *term, size_t term_size, char *wm, size_t wm_size)
 {
+#if defined(__FreeBSD__)
+    const char *path = ttyname(STDIN_FILENO);
+    if (!path || (strncmp(path, "/dev/ttyv", 9) != 0 &&
+                  strcmp(path, "/dev/console") != 0)) return 0;
+#else
     char path[MAX_PATH];
     if (read_link("/proc/self/fd/0", path, sizeof(path)) != 0) return 0;
 
@@ -466,6 +511,7 @@ detect_console(char *term, size_t term_size, char *wm, size_t wm_size)
         path[8] < '0' || path[8] > '9')
         return 0;
 
+#endif
     base_name(path, term, term_size);
     str_cpy(wm, "none", wm_size);
     return 1;
@@ -474,6 +520,11 @@ detect_console(char *term, size_t term_size, char *wm, size_t wm_size)
 static int
 detect_container(void)
 {
+#if defined(__FreeBSD__)
+    int jailed = 0;
+    size_t len = sizeof(jailed);
+    return sysctlbyname("security.jail.jailed", &jailed, &len, NULL, 0) == 0 && jailed;
+#else
     const char *env = getenv("CONTAINER_ID");
     if (env && *env) return 1;
     if (access("/.dockerenv", F_OK) == 0) return 1;
@@ -486,11 +537,15 @@ detect_container(void)
 
     return strstr(buf, "docker") || strstr(buf, "lxc") ||
            strstr(buf, "containerd") || strstr(buf, "podman");
+#endif
 }
 
 static int
 detect_wsl(void)
 {
+#if defined(__FreeBSD__)
+    return 0;
+#else
     char buf[512];
 
     if (getenv("WSLENV")) return 1;
@@ -506,6 +561,7 @@ detect_wsl(void)
         return 1;
 
     return 0;
+#endif
 }
 
 static void
@@ -520,6 +576,29 @@ fetch_wm(char *buf, size_t size)
         return;
     }
 
+#if defined(__FreeBSD__)
+    int mib[] = { CTL_KERN, KERN_PROC, KERN_PROC_RUID, (int)getuid() };
+    for (int attempt = 0; attempt < 3; attempt++) {
+        size_t len = 0;
+        if (sysctl(mib, ARRLEN(mib), NULL, &len, NULL, 0) != 0 || !len) break;
+        struct kinfo_proc *procs = malloc(len);
+        if (!procs) break;
+        if (sysctl(mib, ARRLEN(mib), procs, &len, NULL, 0) != 0) {
+            free(procs);
+            continue;
+        }
+        for (size_t i = 0; i < len / sizeof(*procs); i++) {
+            const char *match = find_match(procs[i].ki_comm, wms, ARRLEN(wms));
+            if (match) {
+                str_cpy(buf, match, size);
+                free(procs);
+                return;
+            }
+        }
+        free(procs);
+        break;
+    }
+#else
     DIR *dir = opendir("/proc");
     if (!dir) {
         str_cpy(buf, "unknown", size);
@@ -550,6 +629,7 @@ fetch_wm(char *buf, size_t size)
     }
 
     closedir(dir);
+#endif
     str_cpy(buf, "unknown", size);
 }
 
@@ -648,8 +728,17 @@ set_limits(void)
 static int
 harden(void)
 {
+#if defined(__FreeBSD__)
+    int trace = PROC_TRACE_CTL_DISABLE;
+    (void)procctl(P_PID, 0, PROC_TRACE_CTL, &trace);
+#ifdef PROC_NO_NEW_PRIVS_CTL
+    int no_new_privs = PROC_NO_NEW_PRIVS_ENABLE;
+    (void)procctl(P_PID, 0, PROC_NO_NEW_PRIVS_CTL, &no_new_privs);
+#endif
+#else
     (void)prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
     (void)prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
+#endif
 
     if (geteuid() != getuid() || getegid() != getgid()) {
         fprintf(stderr, "Error: refusing elevated execution\n");
@@ -675,10 +764,12 @@ main(int argc, char **argv)
         return 1;
     }
 
+#if !defined(__FreeBSD__)
     if (access("/proc/self/stat", R_OK) != 0) {
         fprintf(stderr, "Error: cannot read /proc (hidepid enabled?)\n");
         return 1;
     }
+#endif
 
     proc_t chain[MAX_CHAIN];
     info_t info;

@@ -1,3 +1,4 @@
+#define ZEPTOFETCH_TEST 1
 #define main zeptofetch_main
 #include "zeptofetch.c"
 #undef main
@@ -10,6 +11,7 @@ int main(int argc, char **argv)
 {
     int readers_only = argc == 2 && strcmp(argv[1], "--readers-only") == 0;
     assert(argc == 1 || readers_only);
+#if !defined(__FreeBSD__)
     assert(parse_proc_stat("42 (name\nwith ) parens) S 1 0\n") == 1);
     assert(parse_proc_stat("42 (x) S 4194304 0\n") == MAX_PID);
     assert(parse_proc_stat("42 (x) S 4194305 0\n") == -1);
@@ -18,6 +20,7 @@ int main(int argc, char **argv)
     assert(parse_proc_stat("42 (x) S -1 0\n") == -1);
     assert(parse_proc_stat("42 (x) S 999999999999999999999999 0\n") == -1);
     assert(parse_proc_stat("42 (x)") == -1);
+#endif
     char out[MAX_LINE];
     const char *hints[] = { "TERM_PROGRAM", "KITTY_PID", "KITTY_INSTALLATION_DIR", "ALACRITTY_SOCKET", "ALACRITTY_LOG", "ALACRITTY_WINDOW_ID", "WEZTERM_EXECUTABLE", "WEZTERM_PANE", "TERMUX_VERSION", "TERMUX_MAIN_PACKAGE_FORMAT", "KONSOLE_VERSION", "GNOME_TERMINAL_SCREEN", "GNOME_TERMINAL_SERVICE", "LC_TERMINAL" };
     for (size_t i = 0; i < ARRLEN(hints); i++) unsetenv(hints[i]);
@@ -58,6 +61,7 @@ int main(int argc, char **argv)
     assert(parse_os_value("NAME=L", "NAME", buf, 2));
     assert(strcmp(buf, "L") == 0);
     assert(read_record(dir, buf, sizeof(buf)) == -1);
+#if !defined(__FreeBSD__)
     proc_path(getpid(), "", path, sizeof(path));
     struct stat st;
     assert(stat(path, &st) == 0);
@@ -66,6 +70,22 @@ int main(int argc, char **argv)
     assert(!*path);
     proc_path(getpid(), "../stat", path, sizeof(path));
     assert(!*path);
+#endif
+    proc_t self;
+    assert(read_proc(getpid(), &self, 1) == 0);
+    assert(self.ppid == getppid());
+    assert(self.exe[0]);
+    assert(read_proc(getpid(), &self, 0) == 0);
+    assert(self.ppid == getppid());
+    assert(!self.exe[0]);
+    proc_t ancestry[MAX_CHAIN];
+    size_t ancestors = build_chain(ancestry, ARRLEN(ancestry));
+    assert(ancestors > 0 && ancestors <= MAX_CHAIN);
+    assert(ancestry[0].ppid == getppid());
+    assert(!ancestry[0].exe[0]);
+    assert(build_chain(ancestry, 0) == 0);
+    assert(read_proc(0, &self, 1) == -1);
+    assert(read_proc(getpid(), NULL, 1) == -1);
     snprintf(path, sizeof(path), "%s/record", dir);
     unlink(path);
     FILE *f = fopen(path, "w+");
@@ -82,7 +102,7 @@ int main(int argc, char **argv)
     assert(f);
     read_os(f, out, sizeof(out));
     assert(ferror(f));
-    assert(strcmp(out, "Linux") == 0);
+    assert(strcmp(out, DEFAULT_OS) == 0);
     fclose(f);
     assert(rmdir(dir) == 0);
     if (readers_only) return 0;
