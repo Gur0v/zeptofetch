@@ -12,7 +12,7 @@ DEBUG_TARGET = $(TARGET)-debug
 CFLAGS = -O2 -flto -fPIE $(NATIVE)
 LDFLAGS = -pie -Wl,-z,relro,-z,now,-z,noexecstack,--hash-style=gnu
 
-STD  = -std=c99 -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE
+STD  = -std=c99 -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700 -D_DEFAULT_SOURCE
 WARN = -Wall -Wextra -Wpedantic -Werror=format=2 -Werror=implicit-fallthrough \
        -Werror=shift-overflow -Werror=vla -Werror=pointer-arith
 SEC  = -D_FORTIFY_SOURCE=3 -fstack-protector-strong -fstack-clash-protection \

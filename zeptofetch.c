@@ -26,7 +26,7 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
-#define VERSION     "v2.3"
+#define VERSION     "v2.3.1"
 #define COPYRIGHT   "2024-2026"
 
 #define CR          "\033[0m"
