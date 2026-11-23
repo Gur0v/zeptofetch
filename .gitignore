@@ -4,3 +4,5 @@
 /result
 /result-*
 .direnv/
+
+/tests/zeptofetch-tests
