@@ -1,5 +1,6 @@
-#if defined(__FreeBSD__) && defined(_POSIX_C_SOURCE)
+#if defined(__FreeBSD__)
 #undef _POSIX_C_SOURCE
+#undef _XOPEN_SOURCE
 #endif
 #include <dirent.h>
 #include <errno.h>
@@ -26,7 +27,7 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
-#define VERSION     "v2.3.1"
+#define VERSION     "v2.3.2"
 #define COPYRIGHT   "2024-2026"
 
 #define CR          "\033[0m"

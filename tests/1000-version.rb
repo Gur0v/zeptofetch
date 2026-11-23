@@ -9,6 +9,6 @@ class VersionTest < ZeptoTest
     assert_equal '', long_err
     assert_equal '', short_err
     assert_equal long, short
-    assert_match(/\Azeptofetch v2\.3\.1\nCopyright \(C\) \d{4}-\d{4} Gurov\nLicensed under GPL-3\.0\n\nBUILD: .+ UTC\nCONFIG: CHAIN=\d+ PID=\d+\n\z/, long)
+    assert_match(/\Azeptofetch v2\.3\.2\nCopyright \(C\) \d{4}-\d{4} Gurov\nLicensed under GPL-3\.0\n\nBUILD: .+ UTC\nCONFIG: CHAIN=\d+ PID=\d+\n\z/, long)
   end
 end

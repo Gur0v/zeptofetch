@@ -10,7 +10,7 @@
       in {
         packages.default = pkgs.stdenv.mkDerivation {
           pname = "zeptofetch";
-          version = "2.3.1";
+          version = "2.3.2";
           src = self;
 
           buildPhase = "make";
