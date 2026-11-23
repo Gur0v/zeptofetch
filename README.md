@@ -2,9 +2,9 @@
 
 # zeptofetch
 
-![zeptofetch v2.0](https://i.e-z.host/a4t4aoly.webp)
+![zeptofetch screenshot](https://i.e-z.host/a4t4aoly.webp)
 
-A system information tool for Linux and FreeBSD. Written in C, no dependencies, runs in under 1ms.
+A system information tool for Linux and FreeBSD. Written in C, no dependencies.
 
 </div>
 
@@ -62,13 +62,15 @@ nix profile install github:Gur0v/zeptofetch
 
 **Shell:** walks `/proc/[pid]/exe` up the process tree. On FreeBSD, uses `sysctl(KERN_PROC_PID)` and `KERN_PROC_PATHNAME`, falling back to the process name when its executable path is unavailable. Falls back to `$SHELL`.
 
-**Terminal:** checks specific terminal env hints, then known terminal ancestors, then nearest unknown non-shell/non-wrapper ancestor, then generic `$TERMINAL`.
+**Terminal:** checks specific terminal env hints, then known terminal ancestors, then `$TERMINAL` and `$TERM`, then the nearest unknown non-shell/non-wrapper ancestor. Console, container, and SSH labels take precedence.
 
-**WM:** checks compositor env hints, then scans numeric `/proc` entries against a known list, restricted to current UID. FreeBSD uses `sysctl(KERN_PROC_RUID)` instead of `/proc`. Multiple compositors belonging to the same user, including those in separate sessions, remain ambiguous.
+**WM:** checks compositor env hints, then scans numeric `/proc` entries against a known list, restricted to current UID. FreeBSD uses `sysctl(KERN_PROC_RUID)` instead of `/proc`. Multiple compositors belonging to the same user, including those in separate sessions, remain ambiguous. SSH and containers with display variables also attempt WM detection; those variables may be stale.
 
-**OS:** reads `PRETTY_NAME` from `/etc/os-release` or `/usr/lib/os-release`, falls back to `NAME`, then `"Linux"` (or `"FreeBSD"` on FreeBSD). FreeBSD also checks `/var/run/os-release`.
+**OS:** reads `PRETTY_NAME` from `/etc/os-release` or `/usr/lib/os-release`, falls back to `NAME`, tries the next file if neither name is usable, then `"Linux"` (or `"FreeBSD"` on FreeBSD). FreeBSD also checks `/var/run/os-release`.
 
 **WSL2:** checked via `WSLENV`, `/mnt/wsl`, `binfmt_misc`, and kernel version strings.
+
+**Missing procfs:** Linux still prints system information and falls back to available session hints.
 
 **FreeBSD sessions:** detects virtual consoles via `ttyname` and jails via `security.jail.jailed` (displayed as `container`).
 
@@ -82,7 +84,7 @@ nix profile install github:Gur0v/zeptofetch
 
 WSL2 support is limited. Other BSDs, macOS, and Termux are not supported.
 
-The Nix build skips `-march=native` (not reproducible) and patches out the `RLIMIT_AS` hardening limit (deadlocks under scudo).
+The Nix build skips `-march=native` for reproducibility.
 
 ## License
 [GPL-3.0](LICENSE)
