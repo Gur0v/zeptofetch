@@ -2,89 +2,103 @@
 
 # zeptofetch
 
+A small, fast system information tool for Linux and FreeBSD.
+
 ![zeptofetch screenshot](https://i.e-z.host/a4t4aoly.webp)
 
-A system information tool for Linux and FreeBSD. Written in C, no dependencies.
+Written in C. No runtime dependencies beyond libc.
 
 </div>
 
 ## Benchmarks
-Tested with [hyperfine](https://github.com/sharkdp/hyperfine).
 
-| Tool | Mean | Binary |
-|---|---|---|
-| **zeptofetch** | **506.9 µs ± 53.3 µs** | 32 KB |
-| fastfetch | 5.6 ms ± 0.4 ms | ~200 KB |
-| neofetch | 194.3 ms ± 24.8 ms | ~50 KB |
+Measured with [hyperfine](https://github.com/sharkdp/hyperfine): 200 runs per tool after 20 warmups, with output redirected.
+
+| Tool | Average time | File size |
+|---|---:|---:|
+| **zeptofetch** | **0.93 ms** | **36 KB** |
+| fastfetch | 14.29 ms | 2.2 MB |
+| neofetch | 212.32 ms | 387 KB |
+
+<sub>The tools show different information, so they do different amounts of work. Sizes exclude libraries and interpreters; neofetch is a shell script.</sub>
 
 <details>
-<summary>Test system</summary>
+<summary>Test system and method</summary>
 
 | | |
 |---|---|
-| CPU | AMD Ryzen 5 5600 (12) @ 4.47 GHz |
-| RAM | 32 GB (31.26 GiB) |
-| Kernel | 7.0.14-lqx2-2-lqx |
-| OS | Artix Linux |
-| Desktop | Sway 1.12 (Wayland) |
+| CPU | AMD Ryzen 5 5600 |
+| Memory | 32 GB |
+| System | Void Linux musl, kernel 7.3.5_1 |
+| Desktop | Sway/Wayland |
+| Zeptofetch | Revision `ac8bc8f`; GCC 14.2.1, `-O2 -flto -march=native`, stripped |
+| Comparison | Fastfetch 2.71.0-debug and neofetch 7.1.0, both with `--config none` |
 
 </details>
 
-Run locally with:
-```bash
-make clean && make NATIVE=-march=native
-hyperfine -N --warmup 5 ./zeptofetch
-```
-
-<sub>Results vary by system.</sub>
-
 ## Installation
-**From source:**
-```bash
-git clone https://gitlab.archlinux.org/gurov/zeptofetch.git
+
+### From source
+
+```sh
+git clone https://github.com/Gur0v/zeptofetch.git
 cd zeptofetch
 make NATIVE=-march=native
 sudo make install
 ```
-**FreeBSD:** the base-system Clang and `make` are sufficient; use the same source build commands above. No procfs mount or extra libraries are needed.
 
-**AUR:**
-```bash
-paru -S zeptofetch      # stable
-paru -S zeptofetch-git  # git HEAD
+Omit `NATIVE=-march=native` for a portable build.
+
+On FreeBSD, the base-system Clang and `make` are sufficient. No procfs mount is required.
+
+### Arch Linux
+
+```sh
+paru -S zeptofetch
 ```
-**Nix (flake):**
-```bash
+
+For the latest Git version:
+
+```sh
+paru -S zeptofetch-git
+```
+
+### Nix
+
+```sh
 nix profile install github:Gur0v/zeptofetch
 ```
 
-## How it works
+## Usage
 
-**Shell:** walks `/proc/[pid]/exe` up the process tree. On FreeBSD, uses `sysctl(KERN_PROC_PID)` and `KERN_PROC_PATHNAME`, falling back to the process name when its executable path is unavailable. Falls back to `$SHELL`.
+```sh
+zeptofetch
+```
 
-**Terminal:** checks specific terminal env hints, then known terminal ancestors, then `$TERMINAL` and `$TERM`, then the nearest unknown non-shell/non-wrapper ancestor. Console, container, and SSH labels take precedence.
+Show version and build information:
 
-**WM:** checks compositor env hints, then scans numeric `/proc` entries against a known list, restricted to current UID. FreeBSD uses `sysctl(KERN_PROC_RUID)` instead of `/proc`. Multiple compositors belonging to the same user, including those in separate sessions, remain ambiguous. SSH and containers with display variables also attempt WM detection; those variables may be stale.
+```sh
+zeptofetch --version
+```
 
-**OS:** reads `PRETTY_NAME` from `/etc/os-release` or `/usr/lib/os-release`, falls back to `NAME`, tries the next file if neither name is usable, then `"Linux"` (or `"FreeBSD"` on FreeBSD). FreeBSD also checks `/var/run/os-release`.
+## How detection works
 
-**WSL2:** checked via `WSLENV`, `/mnt/wsl`, `binfmt_misc`, and kernel version strings.
+- **Shell:** Walks the parent process tree, then falls back to `$SHELL`.
+- **Terminal:** Checks terminal-specific environment hints and known parent processes, then falls back to `$TERMINAL`, `$TERM`, or an unrecognized parent.
+- **Window manager:** Checks compositor hints, then scans processes owned by the current user. Multiple sessions under one user can make the result ambiguous.
+- **OS:** Reads `PRETTY_NAME` or `NAME` from available `os-release` files.
+- **Sessions:** Detects Linux virtual consoles and containers, FreeBSD virtual consoles and jails, SSH, and WSL. SSH and containers with display hints also attempt graphical-session detection.
 
-**Missing procfs:** Linux still prints system information and falls back to available session hints.
-
-**FreeBSD sessions:** detects virtual consoles via `ttyname` and jails via `security.jail.jailed` (displayed as `container`).
-
-**Privileges:** `PR_SET_NO_NEW_PRIVS` and `PR_SET_DUMPABLE` set at startup on Linux. FreeBSD uses `procctl(PROC_TRACE_CTL)` and, when available, `PROC_NO_NEW_PRIVS_CTL`. `RLIMIT_CPU`, `RLIMIT_NOFILE`, and `RLIMIT_CORE` capped independently without increasing inherited limits. Failures produce named warnings. Address space is not limited, allowing sanitizer and allocator reservations.
+Linux uses procfs for process detection. If procfs is unavailable, zeptofetch still prints the information it can obtain. FreeBSD uses native `sysctl` interfaces and does not require procfs.
 
 ## Requirements
-- Linux x86_64, kernel 2.6.32+
-- FreeBSD 13+ (native libc; no procfs required; tested on 15.1)
-- On Linux: glibc, musl, or compatible
-- GCC or Clang
 
-WSL2 support is limited. Other BSDs, macOS, and Termux are not supported.
+- Linux x86_64 with kernel 2.6.32 or newer; glibc, musl, or compatible libc
+- FreeBSD 13 or newer
+- GCC or Clang to build
 
-The Nix build skips `-march=native` for reproducibility.
+Other BSDs, macOS, and Termux are not supported.
 
 ## License
+
 [GPL-3.0](LICENSE)
