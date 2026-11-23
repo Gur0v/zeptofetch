@@ -21,7 +21,10 @@ CF_PROTECTION = $$(printf 'int x;\n' | $(CC) -Werror -fcf-protection=full -x c -
 
 export TZ=UTC
 
-.PHONY: all debug tests check clean install uninstall
+RUBY = ruby
+TEST = tests/[0-9]*.rb
+
+.PHONY: all debug tests check check-ruby clean install uninstall
 
 all: $(TARGET)
 
@@ -45,6 +48,9 @@ check: $(TARGET) tests
 	! ./$(TARGET) --invalid >/dev/null 2>&1
 	./$(TARGET) >/dev/null
 	if test -e /dev/full; then ! ./$(TARGET) >/dev/full; ! ./$(TARGET) --version >/dev/full; fi
+
+check-ruby: $(TARGET)
+	@set -e; for test in $(TEST); do $(RUBY) "$$test"; done
 
 clean:
 	rm -f $(TARGET) $(DEBUG_TARGET) tests/zeptofetch-tests
