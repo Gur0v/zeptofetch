@@ -81,6 +81,8 @@ int main(int argc, char **argv)
     assert(!find_match("kgxfoo", terms, ARRLEN(terms)));
     assert(find_match("cosmic-comp", wms, ARRLEN(wms)));
     assert(find_match("dwl", wms, ARRLEN(wms)));
+    assert(strcmp(find_match(".awesome-real", wms, ARRLEN(wms)), "awesome") == 0);
+    assert(!find_match(".awesomefoo", wms, ARRLEN(wms)));
     assert(strcmp(find_match("oil.ovm", shells, ARRLEN(shells)), "oil") == 0);
     assert(strcmp(find_match("fvwm-crystal", wms, ARRLEN(wms)), "fvwm") == 0);
     match_ancestor(&info, fallback, "/bin/unknown-parent");

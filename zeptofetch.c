@@ -27,7 +27,7 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
-#define VERSION     "v2.3.2"
+#define VERSION     "v2.3.3"
 #define COPYRIGHT   "2024-2026"
 
 #define CR          "\033[0m"
@@ -192,6 +192,8 @@ find_match(const char *name, const char **names, size_t count)
 
 	if (!name || !*name)
 		return NULL;
+	if (*name == '.')
+		name++;
 
 	for (i = 0; i < count; i++) {
 		const char *id = names[i];
